@@ -41,7 +41,20 @@ error_at_start() {
 }
 
 start_driver() {
-    /usr/sbin/upsdrvctl -u root start || error_at_start
+    if ! /usr/sbin/upsdrvctl -u root start; then
+        # upsdrvctl fails if any one driver fails. Only abort when no driver
+        # is running at all; otherwise carry on so upsd and upsmon still
+        # protect the system with the UPS devices that did come up.
+        if ! pgrep -f "^$DRIVERPATH/" >/dev/null 2>&1; then
+            error_at_start
+        fi
+        echo "WARNING: NUT failed to start one or more UPS drivers, continuing with the drivers that did start."
+        if [ -x /usr/local/emhttp/webGui/scripts/notify ]; then
+            /usr/local/emhttp/webGui/scripts/notify -e "NUT" -s "NUT: UPS driver failed to start" \
+                -d "One or more UPS drivers failed to start; NUT is running with the remaining drivers. Check the SYSLOG." \
+                -i "warning" >/dev/null 2>&1
+        fi
+    fi
 }
 
 start_upsd() {

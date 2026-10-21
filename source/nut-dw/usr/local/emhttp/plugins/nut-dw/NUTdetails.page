@@ -22,9 +22,13 @@ Tag="file"
  *
  */
 require_once '/usr/local/emhttp/plugins/nut-dw/include/nut_config.php';
+$nut_poll_ms = ($nut_refresh == "enable") ? max(abs(isset($display['refresh']) ? $display['refresh'] : 0), ($nut_interval * 1000)) : 0; // 0 = no auto refresh
 ?>
+<link type="text/css" rel="stylesheet" href="<?=autov('/plugins/nut-dw/css/nut-dw.css');?>">
+<script src="<?=autov('/plugins/nut-dw/js/nut-dw.js');?>"></script>
 
-<table class="tablesorter shift">
+<div class="nut-table-wrap">
+<table class="tablesorter shift" aria-label="UPS variables">
     <thead>
         <tr>
             <th style="width:15%">Key</th>
@@ -35,10 +39,11 @@ require_once '/usr/local/emhttp/plugins/nut-dw/include/nut_config.php';
     </thead>
     <tbody id="nut_status">
         <tr>
-            <td colspan="4" style="text-align:center"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></td>
+            <td colspan="4" class="nut-center"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></td>
         </tr>
     </tbody>
 </table>
+</div>
 
 <div style="font-size:x-small;font-weight:bold;">
     <i class="fa fa-download"></i> <a href="/plugins/nut-dw/include/nut_debug.php">NUT Debug Package (.zip)</a>
@@ -49,17 +54,15 @@ require_once '/usr/local/emhttp/plugins/nut-dw/include/nut_config.php';
 
 <script type="text/javascript">
 function getNUTstatus() {
+    if (nutSkipIfHidden('getNUTstatus', getNUTstatus, <?=$nut_poll_ms?>)) return;
     $.get('/plugins/nut-dw/include/nut_status.php', { all: 'true' }, function(data) {
         if(data && data.success && data.success.response && data.success.allvars) {
             $('#nut_summary').html(data.success.response);
             $('#nut_status').html(data.success.allvars);
             $('#nut_status td:contains("ups.alarm")')
-                .css('background-color', 'rgba(255, 0, 0, 0.1)')
+                .addClass('nut-alarm-cell')
                 .next()
-                .css({
-                    'background-color': 'rgba(255, 0, 0, 0.1)',
-                    'font-weight': 'bold'
-                });
+                .addClass('nut-alarm-cell nut-alarm-val');
             if(data.success.alarms) {
                 $(".nutalarmrow").remove();
                 let nutalarms = data.success.alarms;
@@ -74,14 +77,11 @@ function getNUTstatus() {
                 });
             }
         } else {
-            $('#nut_summary').html('<tr><td colspan="7" style="text-align:center"><i class="fa fa-times-circle" style="color:red;"></i> <em>Failed to retrieve information (check logs).</em></td></tr>');
-            $('#nut_status').html('<tr><td colspan="4" style="text-align:center"><i class="fa fa-times-circle" style="color:red;"></i> <em>Failed to retrieve information (check logs).</em></td></tr>');
+            $('#nut_summary').html('<tr><td colspan="7" class="nut-center"><i class="fa fa-times-circle red-text"></i> <em>Failed to retrieve information (check logs).</em></td></tr>');
+            $('#nut_status').html('<tr><td colspan="4" class="nut-center"><i class="fa fa-times-circle red-text"></i> <em>Failed to retrieve information (check logs).</em></td></tr>');
         }
     }, 'json').always(function() {
-        clearTimeout(timers.getNUTstatus);
-        <?if($nut_refresh == "enable"): ?>
-        timers.getNUTstatus = setTimeout(getNUTstatus, <?=max(abs(isset($display['refresh']) ? $display['refresh'] : 0), ($nut_interval * 1000))?>);
-        <?endif;?>
+        nutSchedule('getNUTstatus', getNUTstatus, <?=$nut_poll_ms?>);
     });
 }
 $(getNUTstatus);

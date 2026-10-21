@@ -194,7 +194,9 @@ else
         fi
 
         echo "Sending OS notifications..." | logger -t "nut-notify[$$]"
-        timeout -s9 15 "$NOTIFY" -e "${EVENT}" -s "Alert ${SUBJECT} Event ${NOTIFYTYPE}" -d "$1" -i "alert"
+        # recovery events are informational, everything else (LOWBATT, FSD, COMMBAD, NOCOMM, ...) is an alert
+        case "$NOTIFYTYPE" in COMMOK|NOTCAL|NOTBYPASS|NOTOFF|NOTOVER|NOTTRIM|NOTBOOST|NOTECO) LVL="normal" ;; *) LVL="alert" ;; esac
+        timeout -s9 15 "$NOTIFY" -e "${EVENT}" -s "${LVL^} ${SUBJECT} Event ${NOTIFYTYPE}" -d "$1" -i "$LVL"
         if [ $? -gt 100 ]; then
             echo "OS notifications could not be sent within 15 seconds." | logger -t "nut-notify[$$]"
         fi

@@ -22,7 +22,10 @@ Link="nav-user"
  */
 ?>
 <?require_once '/usr/local/emhttp/plugins/nut-dw/include/nut_config.php';?>
-<?$update_dash = ($nut_refresh == "enable" ? true : false);?>
+<?
+$update_dash = ($nut_refresh == "enable" ? true : false);
+$nut_poll_ms = $update_dash ? max(abs(isset($display['refresh']) ? $display['refresh'] : 0), ($nut_interval * 1000)) : 0; // 0 = no auto refresh
+?>
 
 <?
 // -------------------------------------------------------------
@@ -30,80 +33,11 @@ Link="nav-user"
 // -------------------------------------------------------------
 ?>
 <?if ($nut_footer == "enable" && $nut_running):?>
-<style type="text/css">
-@keyframes battery-charging {
-  0% { content: "\f244"; }
-  20% { content: "\f243"; }
-  40% { content: "\f242"; }
-  60% { content: "\f241"; }
-  80% { content: "\f240"; }
-}
-.fa-battery-charging:before {
-  content: "\f244";
-  animation: 2s battery-charging infinite;
-}
-@keyframes battery-discharging {
-  0% { content: "\f240"; }
-  20% { content: "\f241"; }
-  40% { content: "\f242"; }
-  60% { content: "\f243"; }
-  80% { content: "\f244"; }
-}
-.fa-battery-discharging:before {
-  content: "\f240";
-  animation: 2s battery-discharging infinite;
-}
-@keyframes fa-blink {
-  0% { opacity: 1; }
-  50% { opacity: 0; }
-}
-.fa-blink {
-  animation: fa-blink .6s linear infinite;
-}
-@keyframes ring{
-  0%{-webkit-transform:rotate(-15deg);transform:rotate(-15deg)}
-  2%{-webkit-transform:rotate(15deg);transform:rotate(15deg)}
-  4%{-webkit-transform:rotate(-18deg);transform:rotate(-18deg)}
-  6%{-webkit-transform:rotate(18deg);transform:rotate(18deg)}
-  8%{-webkit-transform:rotate(-22deg);transform:rotate(-22deg)}
-  10%{-webkit-transform:rotate(22deg);transform:rotate(22deg)}
-  12%{-webkit-transform:rotate(-18deg);transform:rotate(-18deg)}
-  14%{-webkit-transform:rotate(18deg);transform:rotate(18deg)}
-  16%{-webkit-transform:rotate(-12deg);transform:rotate(-12deg)}
-  18%{-webkit-transform:rotate(12deg);transform:rotate(12deg)}
-  100%,20%{-webkit-transform:rotate(0);transform:rotate(0)}
-}
-.faa-parent.animated-hover:hover>.faa-ring,.faa-ring.animated,.faa-ring.animated-hover:hover{
-  -webkit-animation:ring 2s ease infinite;
-  animation:ring 2s ease infinite;
-  transform-origin-x:50%;
-  transform-origin-y:0;
-  transform-origin-z:initial
-}
-.faa-parent.animated-hover:hover>.faa-ring.faa-fast,.faa-ring.animated-hover.faa-fast:hover,.faa-ring.animated.faa-fast{
-  -webkit-animation:ring 1s ease infinite;
-  animation:ring 1s ease infinite
-}
-.faa-parent.animated-hover:hover>.faa-ring.faa-slow,.faa-ring.animated-hover.faa-slow:hover,.faa-ring.animated.faa-slow{
-  -webkit-animation:ring 3s ease infinite;
-  animation:ring 3s ease infinite
-}
-#nut_footer {
-  float: right;
-  <?if(version_compare(parse_ini_file('/etc/unraid-version')['version'],'7.1.99', '<')):?>
-  margin-right: 6px;
-  <?endif;?>
-}
-#nut_footer.minimal {
-  font-family: bitstream;
-  font-size: 1.1rem;
-  <?if(version_compare(parse_ini_file('/etc/unraid-version')['version'],'7.1.99', '<')):?>
-  padding-right: 10px;
-  <?endif;?>
-}
-</style>
+<link type="text/css" rel="stylesheet" href="<?=autov('/plugins/nut-dw/css/nut-dw.css');?>">
+<script src="<?=autov('/plugins/nut-dw/js/nut-dw.js');?>"></script>
 <script type="text/javascript">
 function getNUTfooter() {
+    if (nutSkipIfHidden('getNUTfooter', getNUTfooter, <?=$nut_poll_ms?>)) return;
     $.get('/plugins/nut-dw/include/nut_footer.php', function(data) {
         if(data && data.success && data.success.response) {
             animed = $("#nut_footer").find("i[class^='fa fa-battery-discharging'], i[class^='fa fa-battery-charging']");
@@ -128,20 +62,17 @@ function getNUTfooter() {
                 }
             });
         } else {
-            $("#nut_footer").html("<i class='red-text fa fa-times-circle' title='NUT: Error (check logs)'></i>");
+            $("#nut_footer").html("<i class='red-text fa fa-times-circle' title='NUT: Error (check logs)' aria-hidden='true'></i><span class='red-text'>&thinsp;NUT: error</span>");
         }
     }, 'json').always(function() {
-        clearTimeout(timers.getNUTfooter);
-        <?if ($update_dash):?>
-        timers.getNUTfooter = setTimeout(getNUTfooter, <?=max(abs(isset($display['refresh']) ? $display['refresh'] : 0),($nut_interval * 1000))?>);
-        <?endif;?>
+        nutSchedule('getNUTfooter', getNUTfooter, <?=$nut_poll_ms?>);
     });
 }
 $(function() {
     <?if(version_compare(parse_ini_file('/etc/unraid-version')['version'],'7.1.99', '>')):?>
-    var footer = $("<span id='nut_footer'></span>").appendTo(".footer-right");
+    var footer = $("<span id='nut_footer' role='status'></span>").appendTo(".footer-right");
     <?else:?>
-    var footer = $("<span id='nut_footer'></span>").insertAfter("#footer > span#copyright");
+    var footer = $("<span id='nut_footer' class='nut-legacy'></span>").insertAfter("#footer > span#copyright");
     <?endif;?>
 
     <?if ($nut_footer_style == 1): ?>
@@ -178,6 +109,8 @@ $(function() {
 ?>
 <?if(version_compare(parse_ini_file('/etc/unraid-version')['version'],'6.12.0-beta5', '>')):?>
 <?if(stripos($path, "dashboard") !== false && $nut_running):?>
+<link type="text/css" rel="stylesheet" href="<?=autov('/plugins/nut-dw/css/nut-dw.css');?>">
+<script src="<?=autov('/plugins/nut-dw/js/nut-dw.js');?>"></script>
 <?
 $pluginname = "UPS(NUT)";
 
@@ -210,7 +143,7 @@ $mytiles[$pluginname]['column2'] =
         </span>
     </td>
     </tr>
-    <tr><td style="display: flex;"><span class="w36 ups">UPS Status:</span><span class="nut_status" style="flex: 1; white-space: normal;"></span></td></tr>
+    <tr><td style="display: flex;"><span class="w36 ups">UPS Status:</span><span class="nut_status"></span></td></tr>
     <tr><td><span class="w36 ups">Battery Charge:</span><span class="nut_bcharge"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
     <tr><td><span class="w36 ups">Runtime Left:</span><span class="nut_timeleft"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
     <tr><td><span class="w36 ups">Nominal Power:</span><span class="nut_nompower"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
@@ -230,7 +163,7 @@ $mytiles[$pluginname]['column2'] =
 </div>
 <a href="/Settings/NUTsettings" title="_(Go to NUT Settings)_"><i class="fa fa-fw fa-cog control"></i></a>
 </td></tr>
-<tr><td style="display: flex;"><span class="w36 ups">UPS Status:</span><span class="nut_status" style="flex: 1; white-space: normal;"></span></td></tr>
+<tr><td style="display: flex;"><span class="w36 ups">UPS Status:</span><span class="nut_status"></span></td></tr>
 <tr><td><span class="w36 ups">Battery Charge:</span><span class="nut_bcharge"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
 <tr><td><span class="w36 ups">Runtime Left:</span><span class="nut_timeleft"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
 <tr><td><span class="w36 ups">Nominal Power:</span><span class="nut_nompower"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
@@ -240,83 +173,11 @@ EOT;
 ?>
 <script type="text/javascript">
 function updateNUTDashboard() {
+    if (nutSkipIfHidden('updateNUTDashboard', updateNUTDashboard, <?=$nut_poll_ms?>)) return;
     $.get('/plugins/nut-dw/include/nut_status.php', { all: 'false' }, function(data) {
-        if(data && data.success && data.success.response) {
-            let datax = data.success.response.replace(/<\/?tr>/g, '').replace(/<td/g, '<span').replace(/td>/g, 'span>').split('</span>');
-            $("#tblUPSNUTDash").find('.nut_status').html(datax[0]);
-            $("#tblUPSNUTDash").find('.nut_bcharge').html(datax[1]);
-            $("#tblUPSNUTDash").find('.nut_timeleft').html(datax[2]);
-            $("#tblUPSNUTDash").find('.nut_nompower').html(datax[3]);
-            $("#tblUPSNUTDash").find('.nut_loadpct').html(datax[5] + ' - ' + datax[4]);
-
-            upsstatus = $("#tblUPSNUTDash").find('.nut_status').text();
-            if(datax[0].includes("red-text")) {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-exclamation-circle red-text");
-                $(".nutdsicon").attr("title", upsstatus);
-            } else if(datax[0].includes("orange-text")) {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-exclamation-circle orange-text");
-                $(".nutdsicon").attr("title", upsstatus);
-            } else if(datax[0].includes("green-text")) {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-check-circle green-text");
-                $(".nutdsicon").attr("title", upsstatus);
-            } else {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-question-circle black-text");
-                if(upsstatus) {
-                    $(".nutdsicon").attr("title", upsstatus);
-                } else {
-                    $(".nutdsicon").attr("title", "Unknown Status");
-                }
-            }
-
-            batterycharge = $("#tblUPSNUTDash").find('.nut_bcharge').text();
-            if(datax[1].includes("red-text")) {
-                $(".nutdcc").attr("class", "nutdcc red-text");
-            } else if(datax[1].includes("orange-text")) {
-                $(".nutdcc").attr("class", "nutdcc orange-text");
-            } else if(datax[1].includes("green-text")) {
-                $(".nutdcc").attr("class", "nutdcc green-text");
-            } else {
-                $(".nutdcc").attr("class", "nutdcc black-text");
-            }
-            if(batterycharge) {
-                $(".nutdcc").text(batterycharge);
-            } else {
-                $(".nutdcc").text("-");
-            }
-
-            if(data.success.alarms) {
-                let nutalarms = "<b>NUT Active UPS Alarm(s):</b><br>- ";
-                nutalarms += data.success.alarms.join('<br>- ');
-                $(".nutalarms").html("<i class='red-text fa fa-bell faa-ring animated'></i> ");
-                $(".nutalarms").attr("title", nutalarms);
-                $(".nutalarms").show();
-            } else {
-                $(".nutalarms").html("");
-                $(".nutalarms").attr("title", "");
-                $(".nutalarms").hide();
-            }
-
-            if(typeof $.fn.tooltipster === 'function') {
-                $(".nutdsicon").tooltipster();
-                $(".nutalarms").tooltipster({
-                    contentAsHTML: true
-                });
-            }
-        } else {
-            $(".nutdsicon").attr("class", "nutdsicon fa fa-times-circle red-text");
-            $(".nutdsicon").attr("title", "Error (check logs)");
-            $(".nutdcc").html("<i class='red-text fa fa-times-circle'></i>");
-            $("#tblUPSNUTDash").find('.nut_status').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#tblUPSNUTDash").find('.nut_bcharge').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#tblUPSNUTDash").find('.nut_timeleft').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#tblUPSNUTDash").find('.nut_nompower').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#tblUPSNUTDash").find('.nut_loadpct').html("<i class='red-text fa fa-times-circle'></i>");
-        }
+        nutRenderDash('#tblUPSNUTDash', data);
     }, 'json').always(function() {
-        clearTimeout(timers.updateNUTDashboard);
-        <?if ($update_dash):?>
-        timers.updateNUTDashboard = setTimeout(updateNUTDashboard, <?=max(abs(isset($display['refresh']) ? $display['refresh'] : 0),($nut_interval * 1000))?>);
-        <?endif;?>
+        nutSchedule('updateNUTDashboard', updateNUTDashboard, <?=$nut_poll_ms?>);
     });
 }
 $(function() {
@@ -333,6 +194,7 @@ $(function() {
 ?>
 <?if(version_compare(parse_ini_file('/etc/unraid-version')['version'],'6.12.0-beta6', '<')):?>
 <?if(stripos($path, "dashboard") !== false && $nut_running):?>
+<script src="<?=autov('/plugins/nut-dw/js/nut-dw.js');?>"></script>
 <table id="nut_dashboard" style="display: none;">
 <thead sort=''><tr class='hidden'><td></td><td colspan='3'></td><td></td></tr></thead>
 <tbody sort='' class='sortable'>
@@ -353,83 +215,11 @@ $(function() {
 </table>
 <script type="text/javascript">
 function getNUTDashboard() {
+    if (nutSkipIfHidden('getNUTDashboard', getNUTDashboard, <?=$nut_poll_ms?>)) return;
     $.get('/plugins/nut-dw/include/nut_status.php', { all: 'false' }, function(data) {
-        if(data && data.success && data.success.response) {
-            let datax = data.success.response.replace(/<\/?tr>/g, '').replace(/<td/g, '<span').replace(/td>/g, 'span>').split('</span>');
-            $("#db-box1").find('.nut_status').html(datax[0]);
-            $("#db-box1").find('.nut_bcharge').html(datax[1]);
-            $("#db-box1").find('.nut_timeleft').html(datax[2]);
-            $("#db-box1").find('.nut_nompower').html(datax[3]);
-            $("#db-box1").find('.nut_loadpct').html(datax[5] + ' - ' + datax[4]);
-
-            upsstatus = $("#db-box1").find('.nut_status').text();
-            if(datax[0].includes("red-text")) {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-exclamation-circle red-text");
-                $(".nutdsicon").attr("title", upsstatus);
-            } else if(datax[0].includes("orange-text")) {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-exclamation-circle orange-text");
-                $(".nutdsicon").attr("title", upsstatus);
-            } else if(datax[0].includes("green-text")) {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-check-circle green-text");
-                $(".nutdsicon").attr("title", upsstatus);
-            } else {
-                $(".nutdsicon").attr("class", "nutdsicon fa fa-question-circle black-text");
-                if(upsstatus) {
-                    $(".nutdsicon").attr("title", upsstatus);
-                } else {
-                    $(".nutdsicon").attr("title", "Unknown Status");
-                }
-            }
-
-            batterycharge = $("#db-box1").find('.nut_bcharge').text();
-            if(datax[1].includes("red-text")) {
-                $(".nutdcc").attr("class", "nutdcc red-text");
-            } else if(datax[1].includes("orange-text")) {
-                $(".nutdcc").attr("class", "nutdcc orange-text");
-            } else if(datax[1].includes("green-text")) {
-                $(".nutdcc").attr("class", "nutdcc green-text");
-            } else {
-                $(".nutdcc").attr("class", "nutdcc black-text");
-            }
-            if(batterycharge) {
-                $(".nutdcc").text(batterycharge);
-            } else {
-                $(".nutdcc").text("-");
-            }
-
-            if(data.success.alarms) {
-                let nutalarms = "<b>NUT Active UPS Alarm(s):</b><br>- ";
-                nutalarms += data.success.alarms.join('<br>- ');
-                $(".nutalarms").html("<i class='red-text fa fa-bell faa-ring animated'></i> ");
-                $(".nutalarms").attr("title", nutalarms);
-                $(".nutalarms").show();
-            } else {
-                $(".nutalarms").html("");
-                $(".nutalarms").attr("title", "");
-                $(".nutalarms").hide();
-            }
-
-            if(typeof $.fn.tooltipster === 'function') {
-                $(".nutdsicon").tooltipster();
-                $(".nutalarms").tooltipster({
-                    contentAsHTML: true
-                });
-            }
-        } else {
-            $(".nutdsicon").attr("class", "nutdsicon fa fa-times-circle red-text");
-            $(".nutdsicon").attr("title", "Error (check logs)");
-            $(".nutdcc").html("<i class='red-text fa fa-times-circle'></i>");
-            $("#db-box1").find('.nut_status').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#db-box1").find('.nut_bcharge').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#db-box1").find('.nut_timeleft').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#db-box1").find('.nut_nompower').html("<i class='red-text fa fa-times-circle'></i> <em>Error (check logs)</em>");
-            $("#db-box1").find('.nut_loadpct').html("<i class='red-text fa fa-times-circle'></i>");
-        }
+        nutRenderDash('#db-box1', data);
     }, 'json').always(function() {
-        clearTimeout(timers.getNUTDashboard);
-        <?if ($update_dash):?>
-        timers.getNUTDashboard = setTimeout(getNUTDashboard, <?=max(abs(isset($display['refresh']) ? $display['refresh'] : 0),($nut_interval * 1000))?>);
-        <?endif;?>
+        nutSchedule('getNUTDashboard', getNUTDashboard, <?=$nut_poll_ms?>);
     });
 }
 

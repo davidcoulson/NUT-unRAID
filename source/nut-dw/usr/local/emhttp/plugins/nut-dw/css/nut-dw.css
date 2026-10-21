@@ -1,0 +1,96 @@
+/* nut-dw plugin styles. Colours follow the webGui theme: the webGui variables are
+ * used where the theme defines them, otherwise currentColor-based fallbacks apply. */
+:root {
+  --nut-border: var(--border-color, color-mix(in srgb, currentColor 25%, transparent));
+  --nut-muted: color-mix(in srgb, currentColor 60%, transparent);
+  --nut-error: var(--red-800, #c0392b);
+  --nut-alarm-bg: color-mix(in srgb, var(--nut-error) 12%, transparent);
+}
+
+/* ---- footer / dashboard (moved out of nutFooter.page) ---- */
+@keyframes battery-charging {
+  0% { content: "\f244"; }
+  20% { content: "\f243"; }
+  40% { content: "\f242"; }
+  60% { content: "\f241"; }
+  80% { content: "\f240"; }
+}
+.fa-battery-charging:before { content: "\f244"; animation: 2s battery-charging infinite; }
+@keyframes battery-discharging {
+  0% { content: "\f240"; }
+  20% { content: "\f241"; }
+  40% { content: "\f242"; }
+  60% { content: "\f243"; }
+  80% { content: "\f244"; }
+}
+.fa-battery-discharging:before { content: "\f240"; animation: 2s battery-discharging infinite; }
+@keyframes fa-blink { 0% { opacity: 1; } 50% { opacity: 0; } }
+.fa-blink { animation: fa-blink .6s linear infinite; }
+@keyframes ring {
+  0%{transform:rotate(-15deg)} 2%{transform:rotate(15deg)} 4%{transform:rotate(-18deg)}
+  6%{transform:rotate(18deg)} 8%{transform:rotate(-22deg)} 10%{transform:rotate(22deg)}
+  12%{transform:rotate(-18deg)} 14%{transform:rotate(18deg)} 16%{transform:rotate(-12deg)}
+  18%{transform:rotate(12deg)} 100%,20%{transform:rotate(0)}
+}
+.faa-parent.animated-hover:hover>.faa-ring,.faa-ring.animated,.faa-ring.animated-hover:hover {
+  animation: ring 2s ease infinite; transform-origin: 50% 0;
+}
+.faa-parent.animated-hover:hover>.faa-ring.faa-fast,.faa-ring.animated-hover.faa-fast:hover,.faa-ring.animated.faa-fast { animation: ring 1s ease infinite; }
+.faa-parent.animated-hover:hover>.faa-ring.faa-slow,.faa-ring.animated-hover.faa-slow:hover,.faa-ring.animated.faa-slow { animation: ring 3s ease infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .fa-battery-charging:before, .fa-battery-discharging:before, .fa-blink, .faa-ring.animated { animation: none; }
+}
+#nut_footer { float: right; }
+#nut_footer.nut-legacy { margin-right: 6px; }
+#nut_footer.minimal { font-family: bitstream, monospace; font-size: 1.1rem; }
+#nut_footer.minimal.nut-legacy { padding-right: 10px; }
+#tblUPSNUTDash .nut_status { flex: 1; white-space: normal; }
+
+/* visually hidden text for screen readers (status must not rely on colour alone) */
+.nut-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- tables ---- */
+.nut-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.nut-alarm-cell { background-color: var(--nut-alarm-bg); }
+.nut-alarm-val { font-weight: bold; }
+.nut-center { text-align: center; }
+.nut-box-error { border: 1px solid var(--nut-error); padding: 5px; }
+.nut-devmsg { color: var(--nut-muted); margin-bottom: 15px; display: none; }
+.nut-devmsg-dismiss { float: right; font-size: x-small; cursor: pointer; margin-left: 5px; }
+.nut-helplinks { float: right; margin-right: 10px; }
+.nut-inactive { opacity: 0.3; }
+.nut-pointer { cursor: pointer; }
+.nut-help-cursor { cursor: help; }
+
+/* ---- settings page ---- */
+details.nut-sec { margin: 0 0 14px; border: 1px solid var(--nut-border); border-radius: 4px; }
+details.nut-sec > summary { cursor: pointer; padding: 8px 12px; font-weight: bold; font-size: 1.15em; list-style-position: inside; }
+details.nut-sec > summary:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+details.nut-sec > .nut-sec-body { padding: 4px 12px 8px; }
+.nut-field-err { display: block; color: var(--nut-error); font-size: .9em; margin-top: 4px; }
+.nut-field-err:before { content: "\26A0\FE0E\00a0"; }
+input.nut-invalid, select.nut-invalid { border-color: var(--nut-error) !important; }
+.nut-pass-warn { display: none; color: var(--nut-error); cursor: help; }
+.nut-testconn { margin-top: 6px; }
+#nut_testconn_result { display: inline-block; margin-left: 8px; vertical-align: middle; }
+#nut_testconn_result ul { margin: 4px 0 0 18px; padding: 0; }
+#nut_testconn_result .nut-ok:before { content: "\2714\00a0"; }
+#nut_testconn_result .nut-fail:before { content: "\2718\00a0"; }
+#nut_testconn_result .nut-fail { color: var(--nut-error); }
+
+@media (max-width: 768px) {
+  form#nut-settings dl > dt, form#nut-display dl > dt { float: none; width: auto; text-align: left; margin-bottom: 4px; }
+  form#nut-settings dl > dd, form#nut-display dl > dd { margin-left: 0; }
+  form#nut-settings input.narrow, form#nut-display input.narrow,
+  form#nut-settings input[type=text], form#nut-display input[type=text],
+  form#nut-settings input[type=password], form#nut-settings input[type=number], form#nut-display input[type=number] { max-width: 100%; box-sizing: border-box; }
+  .nut-helplinks { float: none; display: block; margin: 0 0 8px; }
+  details.nut-sec > .nut-sec-body { padding: 4px 8px 8px; }
+}
+
+/* ---- editor page ---- */
+.CodeMirror { border: 1px solid var(--nut-border); cursor: text; margin-top: 15px; margin-bottom: 10px; }
+.CodeMirror pre.CodeMirror-placeholder { color: #999; }
+.errortext { color: var(--nut-error); display: none; }
+.fileTree { width: 305px; max-height: 150px; overflow: scroll; position: absolute; z-index: 100; display: none; }
+@media (max-width: 768px) { .fileTree { width: auto; max-width: 90vw; } }

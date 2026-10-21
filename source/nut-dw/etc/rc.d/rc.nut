@@ -52,6 +52,31 @@ set_line() {
     rm -f "$2.tmp"
 }
 
+# set "KEY value" in file $1: replace every existing line starting "KEY ", or append one if there is none
+# (matched by key, never by line number, so users' own lines in the file are left alone)
+set_key() {
+    SET_KEY="$2" SET_VAL="$3" awk '
+        BEGIN { k = ENVIRON["SET_KEY"]; v = ENVIRON["SET_VAL"]; found = 0 }
+        index($0, k " ") == 1 { print k " " v; found = 1; next }
+        { print }
+        END { if (!found) print k " " v }' "$1" > "$1.tmp" \
+        && cat "$1.tmp" > "$1"
+    rm -f "$1.tmp"
+}
+
+# write the integer upsmon timers; a non-integer value falls back to NUT's default
+write_upsmon_timers() {
+    local kv k d v
+    for kv in NOCOMMWARNTIME:300 FINALDELAY:5 HOSTSYNC:15 RBWARNTIME:43200; do
+        k="${kv%%:*}"; d="${kv##*:}"; v="${!k:-$d}"
+        if [[ ! "$v" =~ ^[0-9]+$ ]]; then
+            echo "Invalid $k value '$v', using the default $d."
+            v="$d"
+        fi
+        set_key "$1" "$k" "$v"
+    done
+}
+
 # quote a value for a NUT config file
 nut_quote() {
     local v="${1//\\/\\\\}"
@@ -59,13 +84,34 @@ nut_quote() {
     printf '"%s"' "$v"
 }
 
-# true if the driver for the GUI-configured UPS name is running
+# true if the driver for UPS $1 (default: the GUI-configured UPS name) is running
 monitored_driver_running() {
     local pidfile
-    for pidfile in /var/run/nut/*-"$NAME".pid; do
+    for pidfile in /var/run/nut/*-"${1:-$NAME}".pid; do
         [ -e "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null && return 0
     done
     return 1
+}
+
+# retry drivers that are not running yet (USB devices can be slow to appear after boot or an outage)
+retry_drivers() {
+    local try ups missing
+    for try in 1 2 3; do
+        missing=""
+        for ups in $(sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/\1/p' /etc/nut/ups.conf); do
+            monitored_driver_running "$ups" || missing="$missing $ups"
+        done
+        [ -z "$missing" ] && return 0
+        echo "NUT driver(s) not running:${missing}, retrying in 10 seconds (attempt ${try}/3)..."
+        sleep 10
+        for ups in $missing; do
+            /usr/sbin/upsdrvctl -u root start "$ups"
+        done
+    done
+    for ups in $(sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/\1/p' /etc/nut/ups.conf); do
+        monitored_driver_running "$ups" || return 1
+    done
+    return 0
 }
 
 error_at_start() {
@@ -76,7 +122,7 @@ error_at_start() {
 }
 
 start_driver() {
-    if ! /usr/sbin/upsdrvctl -u root start; then
+    if ! /usr/sbin/upsdrvctl -u root start && ! retry_drivers; then
         # upsdrvctl fails if any one driver fails. Only abort when no driver
         # is running at all; otherwise carry on so upsd and upsmon still
         # protect the system with the UPS devices that did come up.
@@ -319,6 +365,8 @@ write_config() {
         fi
 
         set_line 8 /etc/nut/upsmon.conf "$var24"
+
+        write_upsmon_timers /etc/nut/upsmon.conf
 
         if [ "$MODE" != "slave" ]; then
             # Set upsd users

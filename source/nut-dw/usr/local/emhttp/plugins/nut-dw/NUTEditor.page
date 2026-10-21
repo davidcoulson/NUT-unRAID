@@ -27,14 +27,9 @@ Markdown="false"
 <link type="text/css" rel="stylesheet" href="<?=autov('/webGui/styles/jquery.filetree.css');?>">
 <link type="text/css" rel="stylesheet" href="<?=autov('/plugins/nut-dw/css/codemirror.min.css');?>">
 <link type="text/css" rel="stylesheet" href="<?=autov('/plugins/nut-dw/css/dracula.min.css');?>">
-<style type="text/css">
-    .CodeMirror { border: 1px solid #eee; cursor: text; margin-top: 15px; margin-bottom: 10px; }
-    .CodeMirror pre.CodeMirror-placeholder { color: #999; }
-    .errortext {color: #EF3D47;display: none;}
-    .fileTree {color:#486dba;width:305px;max-height:150px;overflow:scroll;position:absolute;z-index:100;display:none;}
-</style>
+<link type="text/css" rel="stylesheet" href="<?=autov('/plugins/nut-dw/css/nut-dw.css');?>">
 
-<div style="color:red;"><strong>WARNING:</strong></div>
+<div class="red-text"><strong>WARNING:</strong></div>
 <div><strong>In most cases it is sufficient to configure NUT using the GUI for the smoothest possible user experience.</strong></div>
 <div><strong>Any changing the configuration directly can have unexpected side effects, use '<u>Reset Config</u>' in case of problems.</strong></div>
 <br>
@@ -44,10 +39,10 @@ Markdown="false"
 
 <form id="editform" method="POST">
 
-<img id="editfolder" style="cursor:pointer;margin-left: 10px;" src="/webGui/images/explore.png" >
-<input id="editfile" type="text" name="editfile" value="" readonly="" data-picktop="/etc/nut" data-pickcloseonfile="true" data-pickfilter="conf,users,sh" data-pickroot="/etc/nut" data-pickfolders="false" required="required" >
+<img id="editfolder" class="nut-pointer" style="margin-left: 10px;" src="/webGui/images/explore.png" alt="Choose configuration file" role="button" tabindex="0" title="Choose configuration file">
+<input id="editfile" type="text" aria-label="Configuration file" name="editfile" value="" readonly="" data-picktop="/etc/nut" data-pickcloseonfile="true" data-pickfilter="conf,users,sh" data-pickroot="/etc/nut" data-pickfolders="false" required="required" >
 
-<textarea id="editdata" name="editdata" placeholder="Select Configuration File"></textarea>
+<textarea id="editdata" name="editdata" aria-label="Configuration file contents" placeholder="Select Configuration File"></textarea>
 <input type="hidden" name="commit" value="1" />
 <input type="hidden" name="manual" value="<?=$nut_manual?>" />
 
@@ -67,13 +62,20 @@ Markdown="false"
 <script src="<?=autov('/plugins/nut-dw/js/properties.min.js');?>"></script>
 
 <script type="text/javascript">
+// follow the webGui theme: judge by the page background, fall back to the configured theme name
+function nutDark() {
+    var c = (getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g) || []).map(Number);
+    if (c.length < 3 || (c.length > 3 && c[3] === 0)) return <?=(($display["theme"] ?? 'black') == 'white' || ($display["theme"] ?? '') == 'azure') ? 'false' : 'true';?>;
+    return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 128;
+}
+
 $(function(){
     $('#btnCancel').click(function() {
         location = '/Settings/NUTsettings';
     });
 
     var editor = CodeMirror.fromTextArea($('#editdata')[0], {
-        theme: '<?=($display["theme"] == 'white' || $display["theme"] == 'azure') ? "default" : "dracula";?>',
+        theme: nutDark() ? 'dracula' : 'default',
         mode: 'properties',
         lineNumbers: true,
         autoRefresh: true

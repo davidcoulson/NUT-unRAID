@@ -48,6 +48,10 @@ $nut_rtvalue            = trim(isset($nut_cfg['RTVALUE'])             ? htmlspec
 $nut_timeout            = trim(isset($nut_cfg['TIMEOUT'])             ? htmlspecialchars($nut_cfg['TIMEOUT'])               : 240);
 $nut_upskill            = trim(isset($nut_cfg['UPSKILL'])             ? htmlspecialchars($nut_cfg['UPSKILL'])               : 'disable');
 $nut_replbattmsg        = trim(isset($nut_cfg['REPLBATTMSG'])         ? htmlspecialchars($nut_cfg['REPLBATTMSG'])           : 'disable');
+$nut_nocommwarntime     = trim(isset($nut_cfg['NOCOMMWARNTIME'])      ? htmlspecialchars($nut_cfg['NOCOMMWARNTIME'])        : 300);
+$nut_finaldelay         = trim(isset($nut_cfg['FINALDELAY'])          ? htmlspecialchars($nut_cfg['FINALDELAY'])            : 5);
+$nut_hostsync           = trim(isset($nut_cfg['HOSTSYNC'])            ? htmlspecialchars($nut_cfg['HOSTSYNC'])              : 15);
+$nut_rbwarntime         = trim(isset($nut_cfg['RBWARNTIME'])          ? htmlspecialchars($nut_cfg['RBWARNTIME'])            : 43200);
 $nut_poll               = trim(isset($nut_cfg['POLL'])                ? htmlspecialchars($nut_cfg['POLL'])                  : 15);
 $nut_snmpver            = trim(isset($nut_cfg['SNMPVER'])             ? htmlspecialchars($nut_cfg['SNMPVER'])               : 'v2c');
 $nut_community          = trim(isset($nut_cfg['COMMUNITY'])           ? htmlspecialchars($nut_cfg['COMMUNITY'])             : 'public');
@@ -81,10 +85,16 @@ $nut_loadcalc           = trim(isset($nut_cfg['LOADCALC'])            ? htmlspec
 $nut_loadunit           = trim(isset($nut_cfg['LOADUNIT'])            ? htmlspecialchars($nut_cfg['LOADUNIT'])              : 'W');
 $nut_rtunit             = trim(isset($nut_cfg['RTUNIT'])              ? htmlspecialchars($nut_cfg['RTUNIT'])                : 'seconds');
 
-$nut_running      = !empty(shell_exec("pgrep -x upsmon 2>/dev/null"));
-$apc_running      = !empty(shell_exec("pgrep -x apcupsd 2>/dev/null"));
-
-$nut_installed_backend = htmlspecialchars(trim(shell_exec("find /var/log/packages/ -type f -iname 'nut*' ! -iname 'nut-plugin*' -printf '%f\n' 2>/dev/null") ?? "n/a"));
+// pidfile + /proc check: pgrep scans every process and costs ~0.3s per call on busy hosts
+function nut_daemon_running($name, $pidfiles) {
+    foreach ($pidfiles as $pidfile) {
+        $pid = (int)@file_get_contents($pidfile);
+        if ($pid > 0 && trim(@file_get_contents("/proc/$pid/comm")) === $name) return true;
+    }
+    return false;
+}
+$nut_running      = nut_daemon_running("upsmon", ["/var/run/nut/upsmon.pid", "/var/run/upsmon.pid"]);
+$apc_running      = nut_daemon_running("apcupsd", ["/var/run/apcupsd.pid"]);
 
 # debug constant to overwrite ups.status
 // define('NUT_STATUS_DEBUG', 'OB DISCHRG BYPASS CAL');

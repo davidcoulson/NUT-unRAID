@@ -29,7 +29,7 @@ try {
     $green  = "class='green-text'";
     $orange = "class='orange-text'";
     $status = array_fill(0,7,"<td>-</td>");
-    $all    = $_GET['all']=='true';
+    $all    = ($_GET['all'] ?? '') == 'true';
 
     if ($nut_running) {
         $rows = nut_status_rows($nut_name, $nut_ip);
@@ -71,7 +71,7 @@ try {
         $descriptorMapping = [];
         $descriptorFilePath = '/usr/share/nut/cmdvartab';
         try {
-            if (file_exists($descriptorFilePath) && $descriptorFileHandle = fopen($descriptorFilePath, 'r')) {
+            if ($all && file_exists($descriptorFilePath) && $descriptorFileHandle = fopen($descriptorFilePath, 'r')) {
                 while (($descriptorFileLine = fgets($descriptorFileHandle)) !== false) {
                     if (preg_match('/^VARDESC\s+([a-zA-Z0-9_.]+)\s+"([^"]+)"$/', trim($descriptorFileLine), $descriptorRegexMatches)) {
                         $descriptorMapping[$descriptorRegexMatches[1]] = htmlspecialchars($descriptorRegexMatches[2]);
@@ -94,7 +94,9 @@ try {
             switch ($key) {
                 case 'ups.status':
                     if ($upsStatus['fulltext']) {
-                        $status[0] = '<td' . (isset($nut_msgSeverity[$upsStatus['severity']]) ? ' class="' . $nut_msgSeverity[$upsStatus['severity']]['css_class'] . '"' : '') . '>' . implode(' - ', $upsStatus['fulltext']) . '</td>';
+                        // icon + text next to the colour, so severity is not colour-only
+                        $sevIcon = [1 => '<i class="fa fa-exclamation-triangle"></i> ', 2 => '<i class="fa fa-exclamation-circle"></i> '][$upsStatus['severity']] ?? '';
+                        $status[0] = '<td' . (isset($nut_msgSeverity[$upsStatus['severity']]) ? ' class="' . $nut_msgSeverity[$upsStatus['severity']]['css_class'] . '"' : '') . '>' . $sevIcon . implode(' - ', $upsStatus['fulltext']) . '</td>';
                     } else {
                         $status[0] = '<td class="' . $nut_msgSeverity[1]['css_class'] . '">Refreshing...</td>';
                     }
@@ -134,7 +136,7 @@ try {
                 if ($i%2==0) $result[] = "<tr>";
 
                 if(isset($descriptorMapping[$key])) {
-                    $result[]= "<td><span class='tooltip-nutvar' style='cursor:help;' title='$descriptorMapping[$key]'><strong>$key</strong></span></td><td>$val</td>";
+                    $result[]= "<td><span class='tooltip-nutvar nut-help-cursor' title='$descriptorMapping[$key]'><strong>$key</strong></span></td><td>$val</td>";
                 } else {
                     $result[]= "<td><strong>$key</strong></td><td>$val</td>";
                 }
@@ -217,7 +219,7 @@ try {
 
         if ($all && count($rows)%2==1) $result[] = "<td></td><td></td></tr>";
     }
-    if ($all && !$rows) $result[] = "<tr><td colspan='4' style='text-align:center'>No information available</td></tr>";
+    if ($all && !$rows) $result[] = "<tr><td colspan='4' class='nut-center'>No information available</td></tr>";
 
     if($all) {
         $nuts_response["success"]["response"] = "<tr>".implode('', $status)."</tr>";

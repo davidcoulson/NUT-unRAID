@@ -48,7 +48,25 @@ function nut_upsc($args, &$out, &$unreachable) {
     return $code;
 }
 
+/* Short-lived cache in RAM so the footer, dashboard tile and details page
+ * (separate requests, separate timers) share one upsc call. */
+const NUT_ROWS_CACHE_TTL = 3;
+
 function nut_status_rows($name, $ip) {
+    $file = '/dev/shm/nut-dw-rows-' . md5($name . '@' . $ip) . '.json';
+    if (is_file($file) && (time() - (int)@filemtime($file)) < NUT_ROWS_CACHE_TTL) {
+        $cached = json_decode((string)@file_get_contents($file), true);
+        if (is_array($cached) && $cached) return $cached;
+    }
+    $rows = nut_status_rows_uncached($name, $ip);
+    if ($rows) { // never cache a failure
+        $tmp = $file . '.' . getmypid();
+        if (@file_put_contents($tmp, json_encode($rows)) !== false) @rename($tmp, $file);
+    }
+    return $rows;
+}
+
+function nut_status_rows_uncached($name, $ip) {
     $ups = escapeshellarg($name) . '@' . escapeshellarg($ip);
 
     $status = nut_upsc($ups, $rows, $unreachable);

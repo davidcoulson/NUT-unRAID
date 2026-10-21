@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# Scheduled UPS battery self-test (started from cron, see rc.nut).
+# Usage: nut-batttest [ups-name] [quick|deep]   (defaults come from the plugin settings)
+#
+# Copyright desertwitch (as author and maintainer of this file)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License 2
+# as published by the Free Software Foundation.
+#
+
+PLGPATH="/boot/config/plugins/nut-dw"
+CONFIG="$PLGPATH/nut-dw.cfg"
+NOTIFY="/usr/local/emhttp/plugins/dynamix/scripts/notify"
+HOST="$(echo "$HOSTNAME" | awk '{print toupper($0)}')"
+
+# print "user" and "password" (two lines) of the first upsd.users account with instcmds ALL
+# (or the command $2); handles quoted passwords with \" and \\ escapes, # comments and any case.
+nut_admin_creds() {
+    awk -v want="${2,,}" '
+    function value(s,   out, c, i) {
+        sub(/^[ \t]+/, "", s)
+        if (substr(s, 1, 1) != "\"") { sub(/[ \t#].*$/, "", s); return s }
+        out = ""
+        for (i = 2; i <= length(s); i++) {
+            c = substr(s, i, 1)
+            if (c == "\\") { out = out substr(s, ++i, 1) }
+            else if (c == "\"") break
+            else out = out c
+        }
+        return out
+    }
+    function flush() { if (user != "" && ok && pass != "" && !done) { print user; print pass; done = 1 } }
+    /^[ \t]*\[/ { flush(); s = $0; sub(/^[ \t]*\[/, "", s); sub(/\].*$/, "", s); user = s; pass = ""; ok = 0; next }
+    {
+        eq = index($0, "="); if (!eq) next
+        k = tolower(substr($0, 1, eq - 1)); gsub(/[ \t]/, "", k)
+        v = substr($0, eq + 1)
+        if (k == "password") pass = value(v)
+        else if (k == "instcmds") { v = tolower(value(v)); if (v == "all" || v == want) ok = 1 }
+    }
+    END { flush(); exit !done }' "${1:-/etc/nut/upsd.users}"
+}
+
+main() {
+    [ -e "$CONFIG" ] && source "$CONFIG"
+
+    local ups="${1:-${BATTTESTUPS:-$NAME}}" type="${2:-${BATTTESTTYPE:-quick}}" host cmd target
+    if [[ ! "$ups" =~ ^[A-Za-z0-9._-]+$ ]] || [[ ! "$type" =~ ^(quick|deep)$ ]]; then
+        echo "nut-batttest: invalid UPS name or test type." | logger -t "nut-batttest[$$]"; exit 1
+    fi
+    cmd="test.battery.start.$type"
+    [ "$ups" == "$NAME" ] && host="${IPADDR:-127.0.0.1}" || host="127.0.0.1"
+    target="${ups}@${host}"
+
+    log() { echo "[$target] $*" | logger -t "nut-batttest[$$]"; }
+    notify() { timeout -s9 15 "$NOTIFY" -e "UPS Status" -s "$2 [${HOST}] NUT: [${target}] Battery Self-Test" -d "$3" -i "$1"; }
+
+    local status charge
+    status="$(timeout 10 upsc "$target" ups.status 2>/dev/null)"
+    charge="$(timeout 10 upsc "$target" battery.charge 2>/dev/null)"
+    if [[ " $status " != *" OL "* ]]; then log "Skipped, UPS status is '${status:-unknown}' (not OL)."; exit 0; fi
+    if [[ ! "$charge" =~ ^[0-9]+([.][0-9]+)?$ ]] || [ "${charge%.*}" -lt 90 ]; then
+        log "Skipped, battery charge is '${charge:-unknown}' (needs 90% or more)."; exit 0
+    fi
+    if ! timeout 10 upscmd -l "$target" 2>/dev/null | awk -v c="$cmd" '$1 == c { f = 1 } END { exit !f }'; then
+        log "Skipped, UPS does not support $cmd."; exit 0
+    fi
+
+    local creds user pass
+    if ! mapfile -t creds < <(nut_admin_creds /etc/nut/upsd.users "$cmd") || [ "${#creds[@]}" -lt 2 ]; then
+        log "Skipped, no upsd.users account with command rights and a password was found."; exit 1
+    fi
+    user="${creds[0]}"; pass="${creds[1]}"
+
+    local old out
+    old="$(timeout 10 upsc "$target" ups.test.result 2>/dev/null)"
+    if ! out="$(timeout 30 upscmd -u "$user" -p "$pass" "$target" "$cmd" 2>&1)"; then
+        log "Could not start $cmd: $out"
+        notify warning Warning "The $type battery self-test could not be started: $out"; exit 1
+    fi
+    log "Started $cmd."
+
+    # poll up to 10 minutes; an unchanged result only counts as new once the test was seen running or 60s passed
+    local t=0 seen=0 res=""
+    while [ "$t" -lt 600 ]; do
+        sleep 10; t=$((t + 10))
+        res="$(timeout 10 upsc "$target" ups.test.result 2>/dev/null)"
+        if [[ "${res,,}" == *progress* ]]; then seen=1; continue; fi
+        if [ -n "$res" ] && { [ "$seen" = 1 ] || [ "$res" != "$old" ] || [ "$t" -ge 60 ]; }; then break; fi
+        res=""
+    done
+
+    log "Result: ${res:-none within 10 minutes}"
+    if [[ "${res,,}" == *passed* ]]; then
+        notify normal Notice "The $type battery self-test finished: $res."
+    else
+        notify warning Warning "The $type battery self-test did not pass: ${res:-no result within 10 minutes}."
+    fi
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then main "$@"; fi

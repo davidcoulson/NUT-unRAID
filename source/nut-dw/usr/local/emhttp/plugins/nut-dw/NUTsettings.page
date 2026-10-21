@@ -594,6 +594,83 @@ if (file_exists('/usr/local/emhttp/plugins/nut-dw/misc/start-failed')) {
             <p>Set to <strong><em>Yes</em></strong> to receive a notification when the UPS reports the batteries as needing replacement.</p>
             <p>By default this notification will be sent every 12 hours until the batteries are replaced.</p>
         </blockquote>
+
+        <dl>
+            <dt><label for="ONBATTDELAY">Only Alert for On Battery After:</label></dt>
+            <dd>
+                <input id="ONBATTDELAY" type="number" class="narrow nut-run" name="ONBATTDELAY" value="<?=$nut_onbattdelay?>" min="0" max="86400" step="1" required data-err="Enter a whole number from 0 to 86400.">
+                <em>seconds (0 = alert immediately)</em>
+            </dd>
+        </dl>
+
+        <blockquote class="inline_help">
+            <p>Short power blips would otherwise notify you every time. With a value above 0 the on-battery alert (system message and notification) is only sent if the UPS is still on battery after this many seconds, and the "on line" alert only follows an alert that was actually sent.</p>
+            <p>Shutdown handling and the <strong><em>ONBATT</em></strong> / <strong><em>ONLINE</em></strong> hooks are not delayed. Does not apply in manual configuration mode.</p>
+        </blockquote>
+
+        <dl>
+            <dt><label for="EARLYSTAGE">Run the EARLY_STAGE Hook After:</label></dt>
+            <dd>
+                <input id="EARLYSTAGE" type="number" class="narrow nut-run" name="EARLYSTAGE" value="<?=$nut_earlystage?>" min="0" max="86400" step="1" required data-err="Enter a whole number from 0 to 86400.">
+                <em>seconds on battery (0 = off)</em>
+            </dd>
+        </dl>
+
+        <blockquote class="inline_help">
+            <p>Runs your <strong><em>EARLY_STAGE</em></strong> function from <strong><em>/etc/nut/xnut-notify-hooks.sh</em></strong> once a UPS has been on battery this long, e.g. to stop VMs or reduce the GPU load before the shutdown criteria are met. It is cancelled if power returns first, and runs for every monitored UPS (the UPS is in the <strong><em>UPSNAME</em></strong> variable).</p>
+            <p>Hooks you can define in that file: <strong><em>ONBATT</em></strong>, <strong><em>ONLINE</em></strong>, <strong><em>ONBATT_SHUTDOWN</em></strong>, <strong><em>REPLBATT</em></strong>, <strong><em>EARLY_STAGE</em></strong>, and one named after any other upsmon event you enable. Does not apply in manual configuration mode.</p>
+        </blockquote>
+        </div>
+    </details>
+    <details class="nut-sec" id="SEC_BATTTEST">
+        <summary>Battery Self-Test</summary>
+        <div class="nut-sec-body">
+        <dl>
+            <dt><label for="BATTTEST">Scheduled Battery Self-Test:</label></dt>
+            <dd>
+                <select class="nut-run" id="BATTTEST" name="BATTTEST" size="1">
+                    <?=mk_option($nut_batttest, 'disable', 'Off');?>
+                    <?=mk_option($nut_batttest, 'weekly', 'Weekly');?>
+                    <?=mk_option($nut_batttest, 'monthly', 'Monthly');?>
+                </select>
+            </dd>
+        </dl>
+        <div id="BATTTEST-SETTINGS">
+        <dl>
+            <dt><label for="BATTTESTWDAY">Day and Hour:</label></dt>
+            <dd>
+                <select class="nut-run" id="BATTTESTWDAY" name="BATTTESTWDAY" size="1">
+                    <? foreach(['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as $i => $d) echo mk_option($nut_batttest_wday, (string)$i, $d); ?>
+                </select>
+                <select class="nut-run" id="BATTTESTMDAY" name="BATTTESTMDAY" size="1">
+                    <? for($i = 1; $i <= 28; $i++) echo mk_option($nut_batttest_mday, (string)$i, "Day $i"); ?>
+                </select>
+                at
+                <select class="nut-run" id="BATTTESTHOUR" name="BATTTESTHOUR" size="1">
+                    <? for($i = 0; $i < 24; $i++) echo mk_option($nut_batttest_hour, (string)$i, sprintf('%02d:00', $i)); ?>
+                </select>
+            </dd>
+            <dt><label for="BATTTESTTYPE">Test Type:</label></dt>
+            <dd>
+                <select class="nut-run" id="BATTTESTTYPE" name="BATTTESTTYPE" size="1">
+                    <?=mk_option($nut_batttest_type, 'quick', 'Quick');?>
+                    <?=mk_option($nut_batttest_type, 'deep', 'Deep');?>
+                </select>
+            </dd>
+            <dt><label for="BATTTESTUPS">UPS to Test:</label></dt>
+            <dd>
+                <select class="nut-run" id="BATTTESTUPS" name="BATTTESTUPS" size="1">
+                    <?=mk_option($nut_batttest_ups, '', "GUI UPS ($nut_name)");?>
+                    <? foreach(array_keys(nut_ups_list($nut_name, $nut_ip)) as $nut_bt_ups) echo mk_option($nut_batttest_ups, $nut_bt_ups, $nut_bt_ups); ?>
+                </select>
+            </dd>
+        </dl>
+
+        <blockquote class="inline_help">
+            <p>Starts a battery self-test (<strong><em>test.battery.start.quick</em></strong> or <strong><em>.deep</em></strong>) on schedule and sends a notification with the result (a warning if it did not pass). Monthly runs use days 1 to 28.</p>
+            <p>The test is skipped if the UPS is not on line, the battery is below 90%, or the UPS does not support the command. The admin account is read from <strong><em>/etc/nut/upsd.users</em></strong> (it needs <strong><em>instcmds = all</em></strong>). A deep test discharges the battery noticeably, use it sparingly.</p>
+        </blockquote>
+        </div>
         </div>
     </details>
     <details class="nut-sec" id="SEC_ADVANCED">
@@ -1299,6 +1376,13 @@ function checkRUNNING() {
     checkNUTsettings();
 }
 
+function checkBATTTEST() {
+    var v = $('#BATTTEST').val();
+    $('#BATTTEST-SETTINGS').toggle(v !== 'disable');
+    $('#BATTTESTWDAY').toggle(v === 'weekly');
+    $('#BATTTESTMDAY').toggle(v === 'monthly');
+}
+
 function checkPOWER() {
     if ($('#POWER')[0].selectedIndex < 1)
         $('#POWER-SETTINGS').hide();
@@ -1490,11 +1574,13 @@ $(function() {
     $('#STATS-OR-PREF').change(checkNUTSTATsettings);
     $('#STATSPOLL').change(checkNUTSTATsettings);
     $('#POWER').change(checkPOWER);
+    $('#BATTTEST').change(checkBATTTEST);
 
     $('#RESTART').click(Restart);
 
     checkRUNNING();
     checkPOWER();
+    checkBATTTEST();
     checkNUTSTATsettings(false);
 
     decData();

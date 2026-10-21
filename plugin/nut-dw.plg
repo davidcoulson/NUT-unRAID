@@ -3,14 +3,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "nut-dw">
 <!ENTITY author    "desertwitch">
-<!ENTITY version   "2026.10.22">
+<!ENTITY version   "2026.10.22a">
 <!ENTITY launch    "Settings/NUTsettings">
 <!ENTITY gitURL    "https://raw.githubusercontent.com/davidcoulson/NUT-unRAID/master">
 <!ENTITY pluginURL "&gitURL;/plugin/&name;.plg">
 <!ENTITY pkgURL    "&gitURL;/packages">
 <!ENTITY plgPATH   "/boot/config/plugins/&name;">
-<!ENTITY plgNAME   "nut-plugin-2026.10.22-x86_64-1">
-<!ENTITY plgMD5    "bdec5f795e9ec8b355c2085758ba3c0d">
+<!ENTITY plgNAME   "nut-plugin-2026.10.22a-x86_64-1">
+<!ENTITY plgMD5    "b23d2d6995dd0c6f615cd6fb75a57052">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 ]>
 
@@ -18,6 +18,13 @@
 
 <CHANGES>
 ## Network UPS Tools (NUT) for UNRAID
+###2026.10.22a (davidcoulson fork)
+- new: scheduled UPS battery self-test (weekly or monthly, quick or deep, per UPS) with a result notification
+- new: option to alert for on-battery only after N seconds, and an EARLY_STAGE hook after N seconds on battery (upssched)
+- new: writable UPS variables (upsrw) on the Commands page, for any UPS
+- new: "All UPS devices" overview on the details page and a per-UPS line on the dashboard tile
+- new: outlet on/off/cycle (with confirmation) for UPSes that report switchable outlets
+- fix: the command runner only accepts commands the UPS lists
 ###2026.10.22 (davidcoulson fork)
 - perf: status refreshes no longer run pgrep/find on every poll (0.64s to 0.02s per request on busy hosts); footer, tile and details page share a 3s status cache and pause while the tab is hidden
 - new: default alerts for LOWBATT, FSD, COMMBAD, COMMOK, NOCOMM and SHUTDOWN; recovery events are sent as normal notifications
@@ -579,8 +586,8 @@ if [ -d /boot/config/plugins/nut ] &amp;&amp; [ ! -d /boot/config/plugins/nut-dw
         rm -rf /var/run/nut
         rm -rf /var/state/ups
         rm -rf /etc/nutstats
-        if [ -f /boot/config/plugins/dynamix/nutstats.cron ]; then
-            rm -f /boot/config/plugins/dynamix/nutstats.cron
+        if [ -f /boot/config/plugins/dynamix/nutstats.cron ] || [ -f /boot/config/plugins/dynamix/nut-batttest.cron ]; then
+            rm -f /boot/config/plugins/dynamix/nutstats.cron /boot/config/plugins/dynamix/nut-batttest.cron
             sleep 1
             update_cron
             sleep 1
@@ -880,8 +887,8 @@ rm -rf /var/run/nut
 rm -rf /var/state/ups
 
 rm -rf /etc/nutstats
-if [ -f /boot/config/plugins/dynamix/nutstats.cron ]; then
-    rm -f /boot/config/plugins/dynamix/nutstats.cron
+if [ -f /boot/config/plugins/dynamix/nutstats.cron ] || [ -f /boot/config/plugins/dynamix/nut-batttest.cron ]; then
+    rm -f /boot/config/plugins/dynamix/nutstats.cron /boot/config/plugins/dynamix/nut-batttest.cron
     sleep 1
     update_cron
     sleep 1

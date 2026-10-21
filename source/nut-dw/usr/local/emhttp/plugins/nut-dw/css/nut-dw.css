@@ -94,3 +94,8 @@ input.nut-invalid, select.nut-invalid { border-color: var(--nut-error) !importan
 .errortext { color: var(--nut-error); display: none; }
 .fileTree { width: 305px; max-height: 150px; overflow: scroll; position: absolute; z-index: 100; display: none; }
 @media (max-width: 768px) { .fileTree { width: auto; max-width: 90vw; } }
+
+/* ---- multi-UPS ---- */
+tr.nut-sel > td { background-color: color-mix(in srgb, currentColor 10%, transparent); }
+.nut-oth { margin-right: 10px; white-space: nowrap; }
+.nut-outwarn { color: var(--nut-error); font-weight: bold; }

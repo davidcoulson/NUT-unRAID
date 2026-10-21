@@ -146,7 +146,7 @@ $mytiles[$pluginname]['column2'] =
     <tr><td style="display: flex;"><span class="w36 ups">UPS Status:</span><span class="nut_status"></span></td></tr>
     <tr><td><span class="w36 ups">Battery Charge:</span><span class="nut_bcharge"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
     <tr><td><span class="w36 ups">Runtime Left:</span><span class="nut_timeleft"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
-    <tr><td><span class="w36 ups">Nominal Power:</span><span class="nut_nompower"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
+    <tr><td><span class="w36 ups">Nominal Power:</span><span class="nut_nompower"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span><div class="nut_others" style="display:none"></div></td></tr>
 </tbody>
 EOT;
 } else {
@@ -166,7 +166,7 @@ $mytiles[$pluginname]['column2'] =
 <tr><td style="display: flex;"><span class="w36 ups">UPS Status:</span><span class="nut_status"></span></td></tr>
 <tr><td><span class="w36 ups">Battery Charge:</span><span class="nut_bcharge"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
 <tr><td><span class="w36 ups">Runtime Left:</span><span class="nut_timeleft"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
-<tr><td><span class="w36 ups">Nominal Power:</span><span class="nut_nompower"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span></td></tr>
+<tr><td><span class="w36 ups">Nominal Power:</span><span class="nut_nompower"><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span><div class="nut_others" style="display:none"></div></td></tr>
 </tbody>
 EOT;
 }
@@ -210,6 +210,7 @@ $(function() {
 <span class='ups'>Battery Charge:</span><span class='nut_bcharge'><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span><br>
 <span class='ups'>Runtime Left:</span><span class='nut_timeleft'><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span><br>
 <span class='ups'>Nominal Power:</span><span class='nut_nompower'><i class="fa fa-spinner fa-spin"></i> <em>Please wait, retrieving UPS information...</em></span><br>
+<div class='nut_others' style="display:none"></div>
 </td><td></td></tr>
 </tbody>
 </table>

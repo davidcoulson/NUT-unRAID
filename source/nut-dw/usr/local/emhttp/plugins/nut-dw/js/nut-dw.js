@@ -39,6 +39,8 @@
             $r.find('.nut_timeleft').html(d[2]);
             $r.find('.nut_nompower').html(d[3]);
             $r.find('.nut_loadpct').html(d[5] + ' - ' + d[4]);
+            var ol = data.success.upsline || '';
+            $r.find('.nut_others').html(ol).toggle(!!ol);
 
             var st = $r.find('.nut_status').text(), $icon = $('.nutdsicon');
             if (d[0].includes('red-text')) setIcon($icon, 'fa-exclamation-circle red-text', st);

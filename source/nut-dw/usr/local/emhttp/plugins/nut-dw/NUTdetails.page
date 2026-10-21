@@ -27,6 +27,18 @@ $nut_poll_ms = ($nut_refresh == "enable") ? max(abs(isset($display['refresh']) ?
 <link type="text/css" rel="stylesheet" href="<?=autov('/plugins/nut-dw/css/nut-dw.css');?>">
 <script src="<?=autov('/plugins/nut-dw/js/nut-dw.js');?>"></script>
 
+<div class="nut-table-wrap" id="nut_ups_wrap" style="display:none">
+<table class="tablesorter shift" aria-label="All UPS devices">
+    <thead>
+        <tr>
+            <th>All UPS devices</th><th>Description</th><th>Status</th><th>Battery</th><th>Runtime</th><th>Load</th><th>Input / Output</th>
+        </tr>
+    </thead>
+    <tbody id="nut_ups_all"></tbody>
+</table>
+<div style="font-size:x-small;">Select a UPS to show its variables below.</div>
+</div>
+
 <div class="nut-table-wrap">
 <table class="tablesorter shift" aria-label="UPS variables">
     <thead>
@@ -53,10 +65,18 @@ $nut_poll_ms = ($nut_refresh == "enable") ? max(abs(isset($display['refresh']) ?
 </div>
 
 <script type="text/javascript">
+var nutSel = '';
+$(document).on('click', '.nut-upssel', function(e) {
+    e.preventDefault();
+    nutSel = $(this).attr('data-ups');
+    getNUTstatus();
+});
 function getNUTstatus() {
     if (nutSkipIfHidden('getNUTstatus', getNUTstatus, <?=$nut_poll_ms?>)) return;
-    $.get('/plugins/nut-dw/include/nut_status.php', { all: 'true' }, function(data) {
+    $.get('/plugins/nut-dw/include/nut_status.php', { all: 'true', ups: nutSel }, function(data) {
         if(data && data.success && data.success.response && data.success.allvars) {
+            $('#nut_ups_all').html(data.success.upsrows || '');
+            $('#nut_ups_wrap').toggle(!!data.success.upsrows);
             $('#nut_summary').html(data.success.response);
             $('#nut_status').html(data.success.allvars);
             $('#nut_status td:contains("ups.alarm")')

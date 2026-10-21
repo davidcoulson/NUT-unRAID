@@ -36,6 +36,14 @@ ONBATT_SHUTDOWN () {
 
 }
 
+EARLY_STAGE () {
+    echo "EARLY_STAGE commands are now executing in background..."
+    # Put commands to run once a UPS has been on battery for the configured number of seconds in this function
+    # (e.g. stop VMs, reduce GPU load). The UPS is in $UPSNAME. Cancelled if power returns first.
+
+
+}
+
 REPLBATT () {
     echo "REPLBATT commands are now executing in background..."
     # Put commands to run when the UPS reports that BATTERIES NEED REPLACEMENT in this function:

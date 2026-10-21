@@ -1,0 +1,49 @@
+#!/bin/bash
+#
+# upssched CMDSCRIPT (see rc.nut / nut-notify): runs when an upssched timer fires.
+# $1 is "<kind>:<ups>" with kind alert (delayed on-battery alert), online (back on line after
+# that alert was sent) or early (EARLY_STAGE hook).
+#
+# Copyright desertwitch (as author and maintainer of this file)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License 2
+# as published by the Free Software Foundation.
+#
+
+PLGPATH="/boot/config/plugins/nut-dw"
+CONFIG="$PLGPATH/nut-dw.cfg"
+NOTIFY="/usr/local/emhttp/plugins/dynamix/scripts/notify"
+HOST="$(echo "$HOSTNAME" | awk '{print toupper($0)}')"
+
+KIND="${1%%:*}"
+export UPSNAME="${1#*:}"
+SUBJECT="[${HOST}] NUT: [${UPSNAME}] UPS"
+
+echo "timer ${1:-UNKNOWN} fired" | logger -t "nut-upssched-cmd[$$]"
+
+[ -e "$CONFIG" ] && source "$CONFIG"
+# shellcheck disable=SC1091
+[ -e "/etc/nut/xnut-notify-hooks.sh" ] && source "/etc/nut/xnut-notify-hooks.sh"
+
+notify() { timeout -s9 15 "$NOTIFY" -e "UPS Status" -s "$2 ${SUBJECT} $3" -d "$4" -i "$1"; }
+
+case "$KIND" in
+    alert)
+        MSG="UPS has been on battery for ${ONBATTDELAY} seconds."
+        echo "[${UPSNAME}] ${MSG}" | tee >(wall) >(logger -t "nut-upssched-cmd[$$]")
+        notify alert Alert "On Battery" "$MSG"
+        ;;
+    online)
+        echo "[${UPSNAME}] UPS is online again." | tee >(wall) >(logger -t "nut-upssched-cmd[$$]")
+        notify normal Notice "On Line" "UPS is online again."
+        ;;
+    early)
+        if [ "$(type -t "EARLY_STAGE")" == "function" ]; then
+            echo "Executing user's hook script for EARLY_STAGE (as non-blocking)..." | logger -t "nut-upssched-cmd[$$]"
+            ( EARLY_STAGE 2>&1 | logger -t "xnut-notify-hooks.sh[$$]" ) &
+        fi
+        ;;
+esac
+
+exit 0

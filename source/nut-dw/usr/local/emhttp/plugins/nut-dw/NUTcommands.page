@@ -132,6 +132,69 @@ END;
         ?>
         </tbody>
     </table>
+    <table class="tablesorter shift" id="nutouttop">
+        <thead>
+            <tr>
+                <th>Outlets</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <strong>UPS:</strong>
+                    <select id="nutoutups" size="1">
+                        <? foreach(array_keys(nut_ups_list($nut_name, $nut_ip)) as $nut_out_ups): ?>
+                        <?=mk_option($nut_name, $nut_out_ups, $nut_out_ups);?>
+                        <? endforeach; ?>
+                    </select>
+                    <span id="nutoutmsg"></span>
+                    <span class="nut-outwarn" id="nutoutwarn" style="display:none"><i class="fa fa-exclamation-triangle"></i> Switching an outlet off or cycling it cuts power to the equipment connected to it.</span>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <table id="nutouttbl" class="tablesorter" style="display:none">
+        <thead>
+            <tr><th>Outlet</th><th>Description</th><th>Status</th><th>Switchable</th><th>Control</th></tr>
+        </thead>
+        <tbody id="nutoutbody"></tbody>
+    </table>
+
+    <table class="tablesorter shift">
+        <thead>
+            <tr>
+                <th>Writable UPS Variables</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    Change settings stored in the UPS itself (<em>upsrw</em>), where the device and driver allow it. Uses the admin username and password entered above.
+                    <span style="float:right;"><a href="https://networkupstools.org/docs/man/upsrw.html" target="_blank" title="upsrw User Manual"><i class="fa fa-file-text-o"></i> <u>Command-Line User Manual</u></a></span><br>
+                    <strong>UPS:</strong>
+                    <select id="nutrwups" size="1">
+                        <? foreach(array_keys(nut_ups_list($nut_name, $nut_ip)) as $nut_rw_ups): ?>
+                        <?=mk_option($nut_name, $nut_rw_ups, $nut_rw_ups);?>
+                        <? endforeach; ?>
+                    </select>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <table id="nutrwtbl" class="tablesorter">
+        <thead>
+            <tr>
+                <th>Variable</th>
+                <th>Type / Allowed Values</th>
+                <th>Current Value</th>
+                <th>New Value</th>
+            </tr>
+        </thead>
+        <tbody id="nutrwbody">
+            <tr><td colspan="4">The required service is not running, so no variables are available (yet).</td></tr>
+        </tbody>
+    </table>
 </form>
 
 <script type="text/javascript">
@@ -207,5 +270,96 @@ $(function() {
         }, 'json');
     });
     defaultNutCmdState();
+});
+function nutOutLoad() {
+    var $msg = $("#nutoutmsg").text(""), $body = $("#nutoutbody").empty();
+    $("#nutouttbl, #nutoutwarn").hide();
+    $.post('/plugins/nut-dw/include/nut_commands.php', {nutaction: "outlets", nutups: $("#nutoutups").val()}, function(data) {
+        var ids = (data && data.success && data.success.outlets) ? Object.keys(data.success.outlets) : [];
+        if(!ids.length) { $msg.text("This UPS reports no switchable outlets."); return; }
+        $("#nutouttbl, #nutoutwarn").show();
+        ids.forEach(function(id) {
+            var o = data.success.outlets[id], $c = $("<td></td>");
+            ["on", "off", "cycle"].forEach(function(a) {
+                if(o.cmds[a]) $c.append($("<input type='button' class='nutoutbtn'>").val(a.charAt(0).toUpperCase() + a.slice(1)).attr({"data-cmd": o.cmds[a], "data-act": a, "data-id": id})).append(" ");
+            });
+            $body.append($("<tr></tr>").append($("<td></td>").append($("<strong></strong>").text(id)))
+                .append($("<td></td>").text(o.desc || "-")).append($("<td></td>").text(o.status || "-"))
+                .append($("<td></td>").text(o.switchable || "-")).append($c));
+        });
+    }, 'json').fail(function() { $msg.text("There was an error retrieving the outlets (check the PHP logs)."); });
+}
+function nutOutRun(cmd, ups) {
+    var req = {nutups: ups, nutcmdname: cmd, nutcmduser: $("input[name=nutcmduser]").val(), nutcmdpass: $("input[name=nutcmdpass]").val()};
+    if($("#nutcmdwait").is(":checked")) req.nutcmdwait = "on";
+    $.post('/plugins/nut-dw/include/nut_commands.php', req, function(data) {
+        var ok = data && data.success;
+        var msg = data && (ok ? data.success.response : (data.error && data.error.response));
+        swal({title: "UPS Driver Response", text: "<pre>" + (msg || "The backend driver has not returned any further details.") + "</pre>", type: ok ? "info" : "error", confirmButtonText: 'Close', html: true});
+        nutOutLoad();
+    }, 'json').fail(function() { swal("UPS Driver Response", "The request failed.", "error"); nutOutLoad(); });
+}
+$(function() {
+    $("#nutoutups").on("change", nutOutLoad);
+    $("#nutoutbody").on("click", ".nutoutbtn", function() {
+        var $b = $(this), cmd = $b.attr("data-cmd"), ups = $("#nutoutups").val(), $td = $b.closest("td");
+        if($b.attr("data-act") === "on") { nutOutRun(cmd, ups); return; }
+        // inline confirm instead of confirm(): the cell turns into a warning with Confirm / Cancel
+        var $w = $("<span class='nut-outwarn'></span>").text("Cut power to the equipment on outlet " + $b.attr("data-id") + " (" + $b.attr("data-act") + ")? ");
+        var $ok = $("<input type='button'>").val("Confirm " + $b.attr("data-act")).on("click", function() { $ok.prop("disabled", true); nutOutRun(cmd, ups); });
+        var $no = $("<input type='button' value='Cancel'>").on("click", nutOutLoad);
+        $td.empty().append($w).append($ok).append(" ").append($no);
+    });
+    <?if($nut_running):?>nutOutLoad();<?endif;?>
+});
+function nutRwMsg(msg) {
+    $("#nutrwbody").empty().append($("<tr><td colspan='4'></td></tr>").find("td").text(msg).end());
+}
+function nutRwLoad() {
+    nutRwMsg("Please wait, retrieving variables...");
+    $.post('/plugins/nut-dw/include/nut_upsrw.php', {action: "list", nutups: $("#nutrwups").val()}, function(data) {
+        var names = (data && data.success) ? Object.keys(data.success.vars) : [];
+        if(!names.length) {
+            nutRwMsg((data && data.error && data.error.response) ? $("<div>").html(data.error.response).text() : "No writable variables are available for this UPS.");
+            return;
+        }
+        var $body = $("#nutrwbody").empty();
+        names.forEach(function(name) {
+            var v = data.success.vars[name], allowed, $in;
+            if(v.type === "ENUM") {
+                allowed = v.options.join(", ");
+                $in = $("<select class='nutrwval'></select>");
+                v.options.forEach(function(o) { $in.append($("<option></option>").val(o).text(o)); });
+                $in.val(v.value);
+            } else {
+                allowed = (v.type === "RANGE") ? v.options.join(", ") : "max. length " + v.maxlen;
+                $in = $("<input type='text' class='nutrwval narrow'>").val(v.value);
+            }
+            var $btn = $("<input type='button' class='nutrwbutton' value='Set'>").attr("data-var", name);
+            $body.append($("<tr></tr>")
+                .append($("<td></td>").append($("<strong></strong>").text(name)).append("<br>").append($("<span></span>").text(v.desc)))
+                .append($("<td></td>").text(v.type + ": " + allowed))
+                .append($("<td></td>").text(v.value))
+                .append($("<td></td>").append($in).append(" ").append($btn)));
+        });
+    }, 'json').fail(function() { nutRwMsg("There was an error retrieving the variables (check the PHP logs)."); });
+}
+$(function() {
+    $("#nutrwups").on("change", nutRwLoad);
+    $("#nutrwbody").on("click", ".nutrwbutton", function() {
+        var $btn = $(this).prop("disabled", true);
+        $.post('/plugins/nut-dw/include/nut_upsrw.php', {
+            action: "set", nutups: $("#nutrwups").val(), nutvar: $btn.attr("data-var"),
+            nutvalue: $btn.closest("tr").find(".nutrwval").val(),
+            nutcmduser: $("input[name=nutcmduser]").val(), nutcmdpass: $("input[name=nutcmdpass]").val()
+        }, function(data) {
+            var ok = data && data.success;
+            var msg = data && (ok ? data.success.response : (data.error && data.error.response));
+            swal({title: "UPS Driver Response", text: "<pre>" + (msg || "The backend driver has not returned any further details.") + "</pre>", type: ok ? "info" : "error", confirmButtonText: 'Close', html: true});
+            if(ok) nutRwLoad();
+        }, 'json').fail(function() { swal("UPS Driver Response", "The request failed.", "error"); })
+          .always(function() { $btn.prop("disabled", false); });
+    });
+    <?if($nut_running):?>nutRwLoad();<?endif;?>
 });
 </script>

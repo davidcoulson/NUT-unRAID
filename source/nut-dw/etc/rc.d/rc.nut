@@ -84,6 +84,53 @@ nut_quote() {
     printf '"%s"' "$v"
 }
 
+# write /etc/nut/upssched.conf: on-battery alert debounce (ONBATTDELAY) and EARLY_STAGE hook timers (EARLYSTAGE),
+# one set of timers per MONITOR line of upsmon.conf $2; 0 disables a timer. Output file is $1.
+write_upssched() {
+    local d="${ONBATTDELAY:-0}" e="${EARLYSTAGE:-0}" ups
+    [[ "$d" =~ ^[0-9]+$ ]] || d=0
+    [[ "$e" =~ ^[0-9]+$ ]] || e=0
+    {
+        echo "# Written by the NUT plugin from the GUI settings (not in manual mode)."
+        echo "CMDSCRIPT /usr/sbin/nut-upssched-cmd"
+        echo "PIPEFN /var/run/nut/upssched.pipe"
+        echo "LOCKFN /var/run/nut/upssched.lock"
+        for ups in $(awk '$1 == "MONITOR" { print $2 }' "$2" 2>/dev/null); do
+            if [ "$d" -gt 0 ]; then
+                echo "AT ONBATT $ups START-TIMER alert:$ups $d"
+                # a timer that already fired (= alert was sent) is not found, so CANCEL-TIMER runs the online command
+                echo "AT ONLINE $ups CANCEL-TIMER alert:$ups online:$ups"
+            fi
+            if [ "$e" -gt 0 ]; then
+                echo "AT ONBATT $ups START-TIMER early:$ups $e"
+                echo "AT ONLINE $ups CANCEL-TIMER early:$ups"
+            fi
+        done
+    } > "$1"
+}
+
+# scheduled battery self-test: cron file for nut-batttest, removed when the schedule is off
+write_batttest_cron() {
+    local f=/boot/config/plugins/dynamix/nut-batttest.cron h="${BATTTESTHOUR:-3}" wd="${BATTTESTWDAY:-0}" md="${BATTTESTMDAY:-1}" line=""
+    [[ "$h" =~ ^([0-9]|1[0-9]|2[0-3])$ ]] || h=3
+    [[ "$wd" =~ ^[0-6]$ ]] || wd=0
+    [[ "$md" =~ ^([1-9]|1[0-9]|2[0-8])$ ]] || md=1
+    case "$BATTTEST" in
+        weekly)  line="0 $h * * $wd /usr/sbin/nut-batttest > /dev/null 2>&1" ;;
+        monthly) line="0 $h $md * * /usr/sbin/nut-batttest > /dev/null 2>&1" ;;
+    esac
+    if [ -n "$line" ]; then
+        # only touch the flash (and cron) when the schedule changed
+        if [ "$(cat "$f" 2>/dev/null)" != "$(printf '# NUT scheduled battery self-test\n%s' "$line")" ]; then
+            printf '# NUT scheduled battery self-test\n%s\n' "$line" > "$f"
+            update_cron
+        fi
+    elif [ -f "$f" ]; then
+        rm -f "$f"
+        update_cron
+    fi
+}
+
 # true if the driver for UPS $1 (default: the GUI-configured UPS name) is running
 monitored_driver_running() {
     local pidfile
@@ -381,6 +428,10 @@ write_config() {
         fi
     fi
 
+    if [ "$MANUAL" != "enable" ]; then
+        write_upssched /etc/nut/upssched.conf /etc/nut/upsmon.conf
+    fi
+
     # save conf files to flash drive regardless of mode
     # also here in case someone directly modified files in /etc/nut
     # flash directory will be created if missing (shouldn't happen)
@@ -572,6 +623,8 @@ write_config() {
         /etc/rc.d/rc.rsyslogd restart
         sleep 1
     fi
+
+    write_batttest_cron
 
     # NUT Runtime Statistics Module
     /etc/rc.d/rc.nutstats check

@@ -84,6 +84,14 @@ $nut_stats_c7_txt       = trim(isset($nut_cfg['STATSCHART7TXT'])      ? htmlspec
 $nut_loadcalc           = trim(isset($nut_cfg['LOADCALC'])            ? htmlspecialchars($nut_cfg['LOADCALC'])              : 'disable');
 $nut_loadunit           = trim(isset($nut_cfg['LOADUNIT'])            ? htmlspecialchars($nut_cfg['LOADUNIT'])              : 'W');
 $nut_rtunit             = trim(isset($nut_cfg['RTUNIT'])              ? htmlspecialchars($nut_cfg['RTUNIT'])                : 'seconds');
+$nut_batttest           = trim(isset($nut_cfg['BATTTEST'])            ? htmlspecialchars($nut_cfg['BATTTEST'])                  : 'disable');
+$nut_batttest_wday      = trim(isset($nut_cfg['BATTTESTWDAY'])        ? htmlspecialchars($nut_cfg['BATTTESTWDAY'])              : '0');
+$nut_batttest_mday      = trim(isset($nut_cfg['BATTTESTMDAY'])        ? htmlspecialchars($nut_cfg['BATTTESTMDAY'])              : '1');
+$nut_batttest_hour      = trim(isset($nut_cfg['BATTTESTHOUR'])        ? htmlspecialchars($nut_cfg['BATTTESTHOUR'])              : '3');
+$nut_batttest_type      = trim(isset($nut_cfg['BATTTESTTYPE'])        ? htmlspecialchars($nut_cfg['BATTTESTTYPE'])              : 'quick');
+$nut_batttest_ups       = trim(isset($nut_cfg['BATTTESTUPS'])         ? htmlspecialchars($nut_cfg['BATTTESTUPS'])               : '');
+$nut_onbattdelay        = trim(isset($nut_cfg['ONBATTDELAY'])         ? htmlspecialchars($nut_cfg['ONBATTDELAY'])               : '0');
+$nut_earlystage         = trim(isset($nut_cfg['EARLYSTAGE'])          ? htmlspecialchars($nut_cfg['EARLYSTAGE'])                : '0');
 
 // pidfile + /proc check: pgrep scans every process and costs ~0.3s per call on busy hosts
 function nut_daemon_running($name, $pidfiles) {

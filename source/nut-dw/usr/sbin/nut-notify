@@ -66,6 +66,22 @@ if [ "$SHUTDOWN" == "sec_timer" ]; then
     BATTERY=""
 fi
 
+# On-battery debounce / EARLY_STAGE hook: upssched (config written by rc.nut, never in manual mode) times these.
+# upsmon's NOTIFYCMD stays this script; for ONBATT/ONLINE it also feeds the event to upssched.
+# Shutdown handling below is unaffected: only the wall/OS alert is held back (DELAYALERT=1) when upssched took the event.
+[[ "$ONBATTDELAY" =~ ^[0-9]+$ ]] || ONBATTDELAY=0
+[[ "$EARLYSTAGE" =~ ^[0-9]+$ ]] || EARLYSTAGE=0
+DELAYALERT=0
+if [ "$MANUAL" != "enable" ] && [ -n "$UPSNAME" ] && { [ "$ONBATTDELAY" -gt 0 ] || [ "$EARLYSTAGE" -gt 0 ]; } \
+    && { [ "$NOTIFYTYPE" == "ONBATT" ] || [ "$NOTIFYTYPE" == "ONLINE" ]; }; then
+    # no inherited pipes: upssched may leave a background daemon behind
+    if timeout 15 /usr/sbin/upssched "$1" </dev/null >/dev/null 2>&1; then
+        [ "$ONBATTDELAY" -gt 0 ] && DELAYALERT=1
+    else
+        echo "Error: upssched failed, sending alerts without delay..." | logger -t "nut-notify[$$]"
+    fi
+fi
+
 if [ "$NOTIFYTYPE" == "ONLINE" ]
 then
         echo "Terminating monitoring instances of the program for [${UPS}]..." | logger -t "nut-notify[$$]"
@@ -77,17 +93,24 @@ then
             fi
         done
 
-        echo "[${UPS}] UPS is online, any planned shutdowns were cancelled." | tee >(wall) >(logger -t "nut-notify[$$]")
+        if [ "$DELAYALERT" == "1" ]; then
+            echo "[${UPS}] UPS is online, any planned shutdowns were cancelled." | logger -t "nut-notify[$$]"
+        else
+            echo "[${UPS}] UPS is online, any planned shutdowns were cancelled." | tee >(wall) >(logger -t "nut-notify[$$]")
+        fi
 
         if [ "$(type -t "ONLINE")" == "function" ]; then
             echo "Executing user's hook script for ONLINE (as non-blocking)..." | logger -t "nut-notify[$$]"
             ( ONLINE 2>&1 | logger -t "xnut-notify-hooks.sh[$$]" ) &
         fi
 
-        echo "Sending OS notifications..." | logger -t "nut-notify[$$]"
-        timeout -s9 15 "$NOTIFY" -e "${EVENT}" -s "Notice ${SUBJECT} On Line" -d "UPS is online, any planned shutdowns were cancelled." -i "normal"
-        if [ $? -gt 100 ]; then
-            echo "OS notifications could not be sent within 15 seconds." | logger -t "nut-notify[$$]"
+        # with a delayed alert, upssched's online command sends this only if the on-battery alert went out
+        if [ "$DELAYALERT" != "1" ]; then
+            echo "Sending OS notifications..." | logger -t "nut-notify[$$]"
+            timeout -s9 15 "$NOTIFY" -e "${EVENT}" -s "Notice ${SUBJECT} On Line" -d "UPS is online, any planned shutdowns were cancelled." -i "normal"
+            if [ $? -gt 100 ]; then
+                echo "OS notifications could not be sent within 15 seconds." | logger -t "nut-notify[$$]"
+            fi
         fi
 
 elif [ "$NOTIFYTYPE" == "ONBATT" ]
@@ -104,17 +127,23 @@ then
             MESSAGE="This is not the UPS configured for shutdown in the GUI ([${NAME}@${IPADDR}])."
         fi
 
-        echo "[${UPS}] UPS is on battery. ${MESSAGE}" | tee >(wall) >(logger -t "nut-notify[$$]")
+        if [ "$DELAYALERT" == "1" ]; then
+            echo "[${UPS}] UPS is on battery (alert delayed by ${ONBATTDELAY}s). ${MESSAGE}" | logger -t "nut-notify[$$]"
+        else
+            echo "[${UPS}] UPS is on battery. ${MESSAGE}" | tee >(wall) >(logger -t "nut-notify[$$]")
+        fi
 
         if [ "$(type -t "ONBATT")" == "function" ]; then
             echo "Executing user's hook script for ONBATT (as non-blocking)..." | logger -t "nut-notify[$$]"
             ( ONBATT 2>&1 | logger -t "xnut-notify-hooks.sh[$$]" ) &
         fi
 
-        echo "Sending OS notifications..." | logger -t "nut-notify[$$]"
-        timeout -s9 15 "$NOTIFY" -e "${EVENT}" -s "Alert ${SUBJECT} On Battery" -d "UPS is on battery. ${MESSAGE}" -i "alert"
-        if [ $? -gt 100 ]; then
-            echo "OS notifications could not be sent within 15 seconds." | logger -t "nut-notify[$$]"
+        if [ "$DELAYALERT" != "1" ]; then
+            echo "Sending OS notifications..." | logger -t "nut-notify[$$]"
+            timeout -s9 15 "$NOTIFY" -e "${EVENT}" -s "Alert ${SUBJECT} On Battery" -d "UPS is on battery. ${MESSAGE}" -i "alert"
+            if [ $? -gt 100 ]; then
+                echo "OS notifications could not be sent within 15 seconds." | logger -t "nut-notify[$$]"
+            fi
         fi
 
         if [ "$SHUTDOWN" != "none" ]; then

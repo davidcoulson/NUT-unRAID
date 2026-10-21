@@ -32,7 +32,11 @@ try {
     $all    = ($_GET['all'] ?? '') == 'true';
 
     if ($nut_running) {
-        $rows = nut_status_rows($nut_name, $nut_ip);
+        // optional ups=<name>: any UPS from nut_ups_list, default the GUI UPS
+        $ups_list = nut_ups_list($nut_name, $nut_ip);
+        $sel = (string)($_REQUEST['ups'] ?? '');
+        if (!isset($ups_list[$sel])) $sel = $nut_name;
+        $rows = nut_status_rows($sel, $ups_list[$sel]);
 
         if (isset($_GET['diagsave']) && $_GET['diagsave'] == "true") {
             $diagarray = $rows;
@@ -218,6 +222,27 @@ try {
         }
 
         if ($all && count($rows)%2==1) $result[] = "<td></td><td></td></tr>";
+    }
+    if ($nut_running && count($ups_list) > 1) {
+        $ov = nut_ups_overview($ups_list);
+        $nuts_response["success"]["selected"] = $sel;
+        if ($all) {
+            $t = '';
+            foreach ($ov as $n => $u) {
+                $n_e = htmlspecialchars($n, ENT_QUOTES);
+                $c = '<td colspan="6" class="red-text"><i class="fa fa-times-circle"></i> Unreachable</td>';
+                if ($u['ok']) $c = "<td class='{$u['css']}'>{$u['status']}</td><td>{$u['bat']}</td><td>{$u['rt']}</td><td>{$u['load']}</td><td>{$u['vin']} / {$u['vout']}</td>";
+                $t .= "<tr class='nut-upsrow" . ($n === $sel ? " nut-sel" : "") . "'><td><a href='#' class='nut-upssel' data-ups='$n_e'><strong>$n_e</strong></a></td>" . ($u['ok'] ? "<td>{$u['desc']}</td>" : "") . $c . "</tr>";
+            }
+            $nuts_response["success"]["upsrows"] = $t;
+        } else {
+            $t = '';
+            foreach ($ov as $n => $u) {
+                if ($n === $nut_name) continue;
+                $t .= "<span class='nut-oth'><strong>" . htmlspecialchars($n, ENT_QUOTES) . "</strong> " . ($u['ok'] ? "<span class='{$u['css']}'>{$u['word']} {$u['bat']}</span>" : "<span class='red-text'><i class='fa fa-times-circle'></i> Unreachable</span>") . "</span> ";
+            }
+            $nuts_response["success"]["upsline"] = $t;
+        }
     }
     if ($all && !$rows) $result[] = "<tr><td colspan='4' class='nut-center'>No information available</td></tr>";
 

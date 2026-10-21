@@ -294,4 +294,126 @@ function nut_tailFile($filePath, $lines = 90) {
     }
 }
 
+/* All UPS names (ups.conf sections plus the GUI UPS) => the host to reach them on. */
+function nut_ups_list($gui_name, $gui_ip) {
+    $list = [];
+    if (preg_match_all('/^\s*\[([A-Za-z0-9._-]+)\]/m', (string)@file_get_contents('/etc/nut/ups.conf'), $m)) {
+        foreach ($m[1] as $n) $list[$n] = '127.0.0.1';
+    }
+    $list[$gui_name] = $gui_ip;
+    return $list;
+}
+
+/* Parse the output of `upsrw <ups>` into [name => [desc, type, value, options[], maxlen]].
+ * Blocks look like "[var]", a description line, "Type: ENUM|RANGE|NUMBER|STRING", "Option: ..." lines,
+ * "Maximum length: n" and "Value: v". RANGE options are "min max" or "min - max". */
+function nut_parse_upsrw($lines) {
+    $vars = [];
+    $cur = null;
+    foreach ($lines as $line) {
+        $line = rtrim($line, "\r\n");
+        if (preg_match('/^\[([a-z0-9._]+)\]$/', $line, $m)) {
+            $cur = $m[1];
+            $vars[$cur] = ['desc' => '', 'type' => '', 'value' => '', 'options' => [], 'maxlen' => null];
+        } elseif ($cur === null || trim($line) === '') {
+            continue;
+        } elseif (preg_match('/^Type: (\w+)/', $line, $m)) {
+            $vars[$cur]['type'] = $m[1];
+        } elseif (preg_match('/^Maximum length: (\d+)/', $line, $m)) {
+            $vars[$cur]['maxlen'] = (int)$m[1];
+        } elseif (preg_match('/^Option: "(.*)"( SELECTED)?$/', $line, $m)) {
+            $vars[$cur]['options'][] = $m[1];
+            if (!empty($m[2])) $vars[$cur]['value'] = $m[1]; // ENUM blocks have no Value line
+        } elseif (preg_match('/^Value: ?(.*)$/', $line, $m)) {
+            $vars[$cur]['value'] = $m[1];
+        } elseif ($vars[$cur]['desc'] === '') {
+            $vars[$cur]['desc'] = $line;
+        }
+    }
+    return $vars;
+}
+
+/* Check $value against a variable parsed by nut_parse_upsrw(). Returns an error text, or null if allowed. */
+function nut_check_upsrw_value($var, $value) {
+    if (preg_match('/[\x00-\x1f\x7f]/', $value)) return 'Control characters are not allowed.';
+    switch ($var['type']) {
+        case 'ENUM':
+            return in_array($value, $var['options'], true) ? null : 'Value is not one of the allowed options.';
+        case 'RANGE':
+            if (!is_numeric($value)) return 'Value must be a number.';
+            foreach ($var['options'] as $o) {
+                if (preg_match('/^(-?[0-9.]+)\s+(-?[0-9.]+)$/', $o, $m) || preg_match('/^(-?[0-9.]+)\s*-\s*(-?[0-9.]+)$/', $o, $m)) {
+                    if ($value + 0 >= $m[1] + 0 && $value + 0 <= $m[2] + 0) return null;
+                }
+            }
+            return 'Value is outside the allowed range.';
+        case 'NUMBER':
+            return is_numeric($value) ? null : 'Value must be a number.';
+        case 'STRING':
+            return ($var['maxlen'] === null || strlen($value) <= $var['maxlen']) ? null : 'Value is longer than ' . $var['maxlen'] . ' characters.';
+    }
+    return 'Unknown variable type.';
+}
+/* One summary per UPS for the "All UPS devices" table and the dashboard line, from the cached upsc rows.
+ * Every returned string is already HTML-escaped. ok=false means upsc returned nothing (unreachable). */
+function nut_ups_overview($list) {
+    global $nut_runtime, $nut_rtunit, $nut_msgSeverity;
+    $out = [];
+    foreach ($list as $name => $ip) {
+        $v = [];
+        foreach (nut_status_rows($name, $ip) as $r) {
+            $p = explode(':', $r, 2);
+            if (count($p) == 2) $v[trim($p[0])] = trim($p[1]);
+        }
+        $e = fn($k, $unit = '') => (isset($v[$k]) && $v[$k] !== '') ? htmlspecialchars($v[$k]) . $unit : '-';
+        $st = nut_ups_status(isset($v['ups.status']) ? ['ups.status: ' . $v['ups.status']] : []);
+        $rt = (isset($v[$nut_runtime]) && is_numeric($v[$nut_runtime])) ? gmdate('H:i:s', (int)round($v[$nut_runtime] * ($nut_rtunit == 'minutes' ? 60 : 1))) : '-';
+        $out[$name] = [
+            'ok'     => !empty($v),
+            'desc'   => htmlspecialchars(implode(' ', array_filter([$v['device.mfr'] ?? ($v['ups.mfr'] ?? ''), $v['ups.model'] ?? '', $v['ups.desc'] ?? '']))) ?: '-',
+            'status' => $st['fulltext'] ? implode(' - ', $st['fulltext']) : '-',
+            'css'    => $nut_msgSeverity[$st['severity']]['css_class'] ?? '',
+            'word'   => $st['fulltext'][0] ?? '-',
+            'bat'    => $e('battery.charge', '&thinsp;%'),
+            'rt'     => $rt,
+            'load'   => $e('ups.load', '&thinsp;%'),
+            'vin'    => $e('input.voltage', '&thinsp;V'),
+            'vout'   => $e('output.voltage', '&thinsp;V'),
+        ];
+    }
+    return $out;
+}
+
+/* Command names (name => description) from `upscmd -l <ups>@<host>`; $target is already escaped. Empty on failure. */
+function nut_upscmd_list($target) {
+    $lines = [];
+    exec(NUT_CLIENT_TIMEOUT . '/usr/bin/upscmd -l ' . $target . ' 2>/dev/null', $lines, $ret);
+    $cmds = [];
+    if ($ret === 0 && preg_match_all('/^(.*?) - (.*?)$/m', implode("\n", $lines), $m, PREG_SET_ORDER)) {
+        foreach ($m as $c) $cmds[$c[1]] = $c[2];
+    }
+    return $cmds;
+}
+
+/* Outlets from upsc rows ("key: value") and the upscmd -l command names: outlet.N.* and outlet.group.N.*
+ * variables, plus outlet.[group.]N.load.off|on|cycle commands. Returns [id => [desc, status, switchable, cmds[action => command]]]. */
+function nut_parse_outlets($rows, $cmdnames) {
+    $o = [];
+    $blank = ['desc' => '', 'status' => '', 'switchable' => '', 'cmds' => []];
+    foreach ($rows as $r) {
+        if (preg_match('/^outlet\.((?:group\.)?\d+)\.(desc|name|status|switchable):\s*(.*)$/', $r, $m)) {
+            $o[$m[1]] ??= $blank;
+            $k = $m[2] === 'name' ? 'desc' : $m[2];
+            if ($m[2] !== 'name' || $o[$m[1]]['desc'] === '') $o[$m[1]][$k] = trim($m[3]);
+        }
+    }
+    foreach ($cmdnames as $c) {
+        if (preg_match('/^outlet\.((?:group\.)?\d+)\.load\.(off|on|cycle)$/', $c, $m)) {
+            $o[$m[1]] ??= $blank;
+            $o[$m[1]]['cmds'][$m[2]] = $c;
+        }
+    }
+    uksort($o, 'strnatcmp');
+    return $o;
+}
 ?>

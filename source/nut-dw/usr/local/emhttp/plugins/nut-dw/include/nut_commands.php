@@ -21,13 +21,31 @@ require_once '/usr/local/emhttp/plugins/nut-dw/include/nut_config.php';
 $resp = [];
 
 try {
-    if(isset($_POST["nutcmdname"]) && isset($_POST["nutcmduser"]) && isset($_POST["nutcmdpass"]))
+    // optional nutups: any UPS from nut_ups_list, default the GUI UPS
+    $nutups_list = nut_ups_list($nut_name, $nut_ip);
+    $nutups = (string)($_POST["nutups"] ?? $nut_name);
+    $nutups_target = escapeshellarg($nutups) . "@" . escapeshellarg($nutups_list[$nutups] ?? "");
+    $nutups_cmds = isset($nutups_list[$nutups]) ? nut_upscmd_list($nutups_target) : [];
+
+    if(!isset($nutups_list[$nutups])) {
+        $resp["error"]["response"] = "Unknown UPS.";
+    }
+    elseif(($_POST["nutaction"] ?? "") === "outlets") {
+        // outlet table for the page: upsc variables plus the commands the UPS lists
+        nut_upsc($nutups_target, $nutup_rows, $nutup_unreach);
+        $resp["success"]["outlets"] = nut_parse_outlets($nutup_rows, array_keys($nutups_cmds));
+    }
+    elseif(isset($_POST["nutcmdname"]) && isset($_POST["nutcmduser"]) && isset($_POST["nutcmdpass"]) && !isset($nutups_cmds[$_POST["nutcmdname"]]))
+    {
+        $resp["error"]["response"] = "Command is not listed by the UPS.";
+    }
+    elseif(isset($_POST["nutcmdname"]) && isset($_POST["nutcmduser"]) && isset($_POST["nutcmdpass"]))
     {
         $nutcmd = escapeshellarg($_POST["nutcmdname"]);
         $nutcmd_user = escapeshellarg($_POST["nutcmduser"]);
         $nutcmd_pass = escapeshellarg($_POST["nutcmdpass"]);
-        $nutcmd_ups = escapeshellarg($nut_name);
-        $nutcmd_ip = escapeshellarg($nut_ip);
+        $nutcmd_ups = escapeshellarg($nutups);
+        $nutcmd_ip = escapeshellarg($nutups_list[$nutups]);
         $nutcmd_arg = (isset($_POST["nutcmdarg"]) && !empty($_POST["nutcmdarg"])) ? escapeshellarg($_POST["nutcmdarg"]) : false;
 
         $nutcmd_retval = -1;

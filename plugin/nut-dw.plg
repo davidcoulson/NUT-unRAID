@@ -3,14 +3,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "nut-dw">
 <!ENTITY author    "desertwitch">
-<!ENTITY version   "2026.10.14">
+<!ENTITY version   "2026.10.21">
 <!ENTITY launch    "Settings/NUTsettings">
 <!ENTITY gitURL    "https://raw.githubusercontent.com/davidcoulson/NUT-unRAID/master">
 <!ENTITY pluginURL "&gitURL;/plugin/&name;.plg">
 <!ENTITY pkgURL    "&gitURL;/packages">
 <!ENTITY plgPATH   "/boot/config/plugins/&name;">
-<!ENTITY plgNAME   "nut-plugin-2026.10.14-x86_64-1">
-<!ENTITY plgMD5    "3ccc0b5d7693602b27e7701ef946761c">
+<!ENTITY plgNAME   "nut-plugin-2026.10.21-x86_64-1">
+<!ENTITY plgMD5    "b33a3b2230a1b6474c85c7b7c5f979cd">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 ]>
 
@@ -18,9 +18,25 @@
 
 <CHANGES>
 ## Network UPS Tools (NUT) for UNRAID
-MAINTENANCE MODE: With Unraid approaching its transition to Fedora, this package is now moving into maintenance mode. Existing installs will continue to work as they do today, and fixes will be provided on a best-effort basis to keep core functionality running. New features aren't planned, and the UI may not always display perfectly if future Unraid versions should change their layout. If a future Unraid release introduces a breaking change, the maximum supported version will be set at that point to help avoid broken installs, which would likely mark the end of support for this plugin. Thank you for your understanding and continued support.
+###2026.10.21 (davidcoulson fork)
+- merge upstream 2026.10.16 (hung upsd fix, end-of-support notice)
+- fix: write GUI settings into NUT config files without sed (passwords with , &amp; or newlines no longer corrupt configs or run commands)
+- fix: config editor only reads/writes files inside /etc/nut, and reports flash write failures
+- fix: escape UPS-reported values in the details page and footer tooltips
+- fix: nut-notify only cancels shutdowns for the UPS that came back online, and only the GUI-configured UPS starts the shutdown timer
+- fix: nut-notify no longer waits forever when the UPS stops reporting data while on battery (shuts down after 120s without data)
+- fix: serialize rc.nut start/stop/restart/reload/write_config with a lock
+- fix: raise an alert (not just a warning) when the driver for the monitored UPS did not start
+- fix: restart NUT if a plugin upgrade fails after services were stopped
+- fix: statistics settings copy no longer world-readable, variable names validated, first collection runs in background
+- fix: new installs and config resets get a random upsd admin password instead of adminpass
 ###2026.10.14 (davidcoulson fork)
 - fix: start upsd/upsmon even when one UPS driver fails (only abort if no driver starts)
+###2026.10.16
+#### Plugin Advisory: End of Support on 30.11.2026
+With new details on Unraid 8 now available, it felt like the right time to make a final decision about this plugin and set clear expectations. I've been focused on new things for a while and am preparing the transition of my own infrastructure, so I can no longer give the plugin the attention and love it deserves. It wasn't an easy choice, but support will end on 30.11.2026. From that date, the plugin stays installable as-is, but without any guarantee of stability or usability, so use is entirely at your own risk. The repository will be archived, but if a future Unraid release is reported to break the plugin in the support thread, I'll have to cap the maximum supported version and prevent further installs from that version onwards. Forks are very welcome; just coordinate with the Community Applications maintainers. Thank you all for the support over the years - Unraid has been an amazing community to serve, and I hope to stay in touch with many of you on the forums or Discord.
+###2026.10.15
+- fix: keep a hung upsd from exhausting PHP workers (thanks Joly0)
 ###2026.10.06
 - announce maintenance mode (no functional changes)
 ###2026.06.18
@@ -490,6 +506,7 @@ if [ -f /boot/config/plugins/nut.plg ] || [ -f /boot/config/plugins/nut-2.8.0.pl
     exit 1
 fi
 
+pgrep -x upsmon >/dev/null 2>&amp;1 &amp;&amp; UPSMON_WAS_RUNNING="YES"
 echo "Making sure all existing NUT services are stopped (before install/upgrade)..."
 if [ -x /etc/rc.d/rc.nut ]; then
     if ! /etc/rc.d/rc.nut stop >/dev/null 2>&amp;1; then
@@ -499,6 +516,12 @@ if [ -x /etc/rc.d/rc.nut ]; then
         echo "WARNING:"
     fi
     killall nut-poller >/dev/null 2>&amp;1
+fi
+
+# if the upgrade fails after this point (e.g. a download error), nothing else restarts NUT
+if [ "$UPSMON_WAS_RUNNING" == "YES" ]; then
+    echo "Scheduling a safety check to restart NUT in 10 minutes if the upgrade does not complete..."
+    at -M now + 10 minutes &lt;&lt;&lt; "pgrep -x upsmon >/dev/null 2>&amp;1 || /etc/rc.d/rc.nut start 2>&amp;1 | logger -t \"rc.nut\"" >/dev/null 2>&amp;1
 fi
 
 if [ -x /etc/rc.d/rc.nutstats ]; then

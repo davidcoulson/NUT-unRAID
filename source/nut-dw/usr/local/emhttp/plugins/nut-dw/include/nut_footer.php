@@ -98,9 +98,9 @@ try {
         if (count($ups_alarm)) {
             $alarms = "<b>NUT Active UPS Alarm(s):</b>";
             foreach ($ups_alarm as $al) {
-                $alarms .= "<br>- ".$ups_status[$al];
+                $alarms .= "<br>- ".htmlspecialchars($ups_status[$al]);
             }
-            $status[0] = "<span id='nut_alarm' class='tooltip-nut $red' data=\"$alarms\"><i class='fa fa-bell faa-ring animated'></i></span>";
+            $status[0] = "<span id='nut_alarm' class='tooltip-nut $red' data=\"".htmlspecialchars($alarms)."\"><i class='fa fa-bell faa-ring animated'></i></span>";
         }
 
         $battery_runtime = (array_key_exists($nut_runtime, $ups_status) && is_numeric($ups_status[$nut_runtime])) ? nut_format_time($ups_status[$nut_runtime],$nut_rtunit) : "n/a";
@@ -136,7 +136,8 @@ try {
             $online['fulltext'][] = 'Battery status unknown';
         }
 
-        $statusTooltipData = ' data="<b>NUT Device Status:</b><br>[' . $nut_name . '] ' . implode(' - ', $online['fulltext']) . '"';
+        # tooltip HTML lives in an attribute, so it is escaped once more for that context
+        $statusTooltipData = ' data="' . htmlspecialchars('<b>NUT Device Status:</b><br>[' . $nut_name . '] ' . implode(' - ', $online['fulltext'])) . '"';
 
         $status[1] = "<span id='" . ($nut_footer_style == 0 ? "nut_battery" : "") . "' class='".($nut_footer_style == 0 || $online['severity'] > 0 ? "tooltip-nut" : "")." " . $css_class . "'" . $statusTooltipData . "><i class='fa " . $fa_icon . "' style='vertical-align: baseline;'></i>&thinsp;" . $batteryText . "</span>";
 
@@ -177,7 +178,7 @@ try {
             $powerTooltipData = "Load: $load&thinsp;%";
         }
 
-        $powerTooltipData = " data='<b>NUT Power Metrics:</b><br>[{$nut_name}] " . $powerTooltipData . "'";
+        $powerTooltipData = " data='" . htmlspecialchars("<b>NUT Power Metrics:</b><br>[{$nut_name}] " . $powerTooltipData, ENT_QUOTES) . "'";
 
         # show connected clients in netserver mode
         if ($nut_mode == "netserver" && $nut_footer_conns !== "disable") {
@@ -187,7 +188,7 @@ try {
                     $nutc_rows = array_diff($nutc_rows, [explode(":", $nut_ip)[0]]);
                     $nutc_count = count($nutc_rows);
                     if(!empty($nutc_rows)) {
-                        $status[3] = "<span id='nut_clients' class='tooltip-nut ".($nut_footer_style == 0 ? "$green" : "$black")."' data=\"<b>NUT Connected Slaves:</b><br>- ".implode("<br>- ",array_map('htmlspecialchars', $nutc_rows))."\"><i class='fa fa-user-circle'></i>&thinsp;$nutc_count</span>";
+                        $status[3] = "<span id='nut_clients' class='tooltip-nut ".($nut_footer_style == 0 ? "$green" : "$black")."' data=\"".htmlspecialchars("<b>NUT Connected Slaves:</b><br>- ".implode("<br>- ",array_map('htmlspecialchars', $nutc_rows)))."\"><i class='fa fa-user-circle'></i>&thinsp;$nutc_count</span>";
                     } else {
                         $status[3] = "<span id='nut_clients' class='tooltip-nut ".($nut_footer_style == 0 ? "$green" : "$black")."' data=\"<b>NUT Connected Slaves:</b><br>(No Active Connections)\"><i class='fa fa-user-circle'></i>&thinsp;$nutc_count</span>";
                     }

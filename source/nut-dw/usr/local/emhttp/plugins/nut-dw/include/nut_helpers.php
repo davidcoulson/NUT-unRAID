@@ -182,8 +182,8 @@ function nut_ups_status($rows, $valueOnly = false)
                 $severity = max($severity, $nut_states[$var]['severity']);
                 return $nut_states[$var]['msg'];
             } else {
-                # if unknown status flag, return it
-                return $var;
+                # if unknown status flag, return it (escaped, it comes from the UPS)
+                return htmlspecialchars($var);
             }
         }, $status_values);
     });

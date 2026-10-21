@@ -18,10 +18,11 @@
  *
  */
 $base = '/etc/nut/';
-$file = realpath($_GET['editfile']);
+$file = realpath($_GET['editfile'] ?? '');
 $editfile = 'Invalid File';
 
-if(file_exists($file)) {
+// only files directly inside /etc/nut may be opened
+if($file && is_file($file) && dirname($file).'/' === $base) {
     $editfile = file_get_contents($file);
 }
 echo json_encode($editfile);

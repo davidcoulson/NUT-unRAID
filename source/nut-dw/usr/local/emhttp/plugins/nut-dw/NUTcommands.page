@@ -64,9 +64,9 @@ require_once '/usr/local/emhttp/plugins/nut-dw/include/nut_config.php';
                 <td>
                     This module lets you interact with your connected UPS device through the listed software commands, where applicable and supported.
                     <span style="float:right;"><a href="https://networkupstools.org/docs/man/upscmd.html" target="_blank" title="upscmd User Manual"><i class="fa fa-file-text-o"></i> <u>Command-Line User Manual</u></a></span><br>
-                    The username and password are pre-filled with the defaults and only need to be changed if these values were modified (inside <em>upsd.users</em>)<br>
+                    Enter the admin username and password from <em>upsd.users</em> (new installs and config resets get a random admin password, older installs may still use the default <em>adminpass</em>)<br>
                     <strong>Username:</strong> <input type="text" name="nutcmduser" value="admin" class="narrow">
-                    <strong>Password:</strong> <input type="password" name="nutcmdpass" value="adminpass" class="narrow">
+                    <strong>Password:</strong> <input type="password" name="nutcmdpass" value="" class="narrow">
                     <input type="checkbox" name="nutcmdwait" id="nutcmdwait">
                     <label for="nutcmdwait">Wait for Driver Response</label><br>
                     <strong>Additional Argument:</strong><input type="text" name="nutcmdarg" id="nutcmdarg" value="" class="narrow"> (as optional/required by some commands)<br>

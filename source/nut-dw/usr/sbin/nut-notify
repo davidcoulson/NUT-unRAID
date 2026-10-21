@@ -44,7 +44,9 @@ echo "is now handling ${NOTIFYTYPE:-UNKNOWN}" | logger -t "nut-notify[$$]"
 # shellcheck disable=SC1091
 [ -e "/etc/nut/xnut-notify-hooks.sh" ] && source "/etc/nut/xnut-notify-hooks.sh"
 
-SUBJECT="[${HOST}] NUT: [${NAME}@${IPADDR}] UPS"
+# upsmon passes the UPS that raised the event (name@host); fall back to the GUI setting
+UPS="${UPSNAME:-${NAME}@${IPADDR}}"
+SUBJECT="[${HOST}] NUT: [${UPS}] UPS"
 
 if [ "$SHUTDOWN" == "batt_level" ]; then
     TIMER="$BATTERYLEVEL"
@@ -66,10 +68,16 @@ fi
 
 if [ "$NOTIFYTYPE" == "ONLINE" ]
 then
-        echo "Terminating monitoring instances of the program..." | logger -t "nut-notify[$$]"
-        pgrep -f "/usr/sbin/nut-notify" | grep -v "^$$\$" | xargs -rt kill -s SIGTERM 2>&1 | logger -t "nut-notify[$$]"
+        echo "Terminating monitoring instances of the program for [${UPS}]..." | logger -t "nut-notify[$$]"
+        for pid in $(pgrep -f "/usr/sbin/nut-notify"); do
+            [ "$pid" == "$$" ] && continue
+            # only cancel shutdowns started by the same UPS (no UPSNAME = legacy, cancel all)
+            if [ -z "$UPSNAME" ] || tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qxF "UPSNAME=${UPSNAME}"; then
+                kill -s SIGTERM "$pid" 2>&1 | logger -t "nut-notify[$$]"
+            fi
+        done
 
-        echo "[${NAME}] UPS is online, any planned shutdowns were cancelled." | tee >(wall) >(logger -t "nut-notify[$$]")
+        echo "[${UPS}] UPS is online, any planned shutdowns were cancelled." | tee >(wall) >(logger -t "nut-notify[$$]")
 
         if [ "$(type -t "ONLINE")" == "function" ]; then
             echo "Executing user's hook script for ONLINE (as non-blocking)..." | logger -t "nut-notify[$$]"
@@ -90,7 +98,13 @@ then
             echo "Error: Malformed shutdown criteria, defaulting to ${TIMER} seconds timer..." | logger -t "nut-notify[$$]"
         fi
 
-        echo "[${NAME}] UPS is on battery. ${MESSAGE}" | tee >(wall) >(logger -t "nut-notify[$$]")
+        # only the GUI-configured UPS drives the shutdown criteria; others are monitor-only here
+        if [ -n "$UPSNAME" ] && [ "$UPSNAME" != "${NAME}@${IPADDR}" ]; then
+            SHUTDOWN="none"
+            MESSAGE="This is not the UPS configured for shutdown in the GUI ([${NAME}@${IPADDR}])."
+        fi
+
+        echo "[${UPS}] UPS is on battery. ${MESSAGE}" | tee >(wall) >(logger -t "nut-notify[$$]")
 
         if [ "$(type -t "ONBATT")" == "function" ]; then
             echo "Executing user's hook script for ONBATT (as non-blocking)..." | logger -t "nut-notify[$$]"
@@ -115,18 +129,28 @@ then
                         (( n-- ))
                 done
             else
-                timer=$(/usr/bin/upsc "$NAME"@"$IPADDR" "$BATTERY" 2>/dev/null)
+                nodata=0
+                timer=$(timeout 10 /usr/bin/upsc "$UPS" "$BATTERY" 2>/dev/null)
                 # Loop with one second interval to allow SIGTERM reception.
-                # Continue looping if `upsc` output is null or non-numeric until not or `upsmon` sets FSD (LB).
+                # Keep looping while above the threshold; on battery with no usable data for 120s, shut down anyway.
                 while [ -z "$timer" ] || [[ ! "$timer" =~ ^[0-9]+([.][0-9]+)?$ ]] || [ "$(printf "%.0f" "$timer")" -gt "$TIMER" ]
                 do
+                    if [ -z "$timer" ] || [[ ! "$timer" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+                        (( nodata++ ))
+                        if [ "$nodata" -ge 120 ]; then
+                            echo "Error: No usable ${BATTERY} data from [${UPS}] for 120 seconds while on battery..." | logger -t "nut-notify[$$]"
+                            break
+                        fi
+                    else
+                        nodata=0
+                    fi
                     sleep 1
-                    timer=$(/usr/bin/upsc "$NAME"@"$IPADDR" "$BATTERY" 2>/dev/null)
+                    timer=$(timeout 10 /usr/bin/upsc "$UPS" "$BATTERY" 2>/dev/null)
                 done
             fi
 
             echo "Shutdown criteria are now met, proceeding with shutdown..." | logger -t "nut-notify[$$]"
-            echo "[${NAME}] UNRAID is being gracefully shutdown from a UPS power event." | tee >(wall) >(logger -t "nut-notify[$$]")
+            echo "[${UPS}] UNRAID is being gracefully shutdown from a UPS power event." | tee >(wall) >(logger -t "nut-notify[$$]")
 
             if [ "$(type -t "ONBATT_SHUTDOWN")" == "function" ]; then
                 echo "Executing user's hook script for ONBATT_SHUTDOWN (as non-blocking)..." | logger -t "nut-notify[$$]"
@@ -146,7 +170,7 @@ then
 elif [ "$NOTIFYTYPE" == "REPLBATT" ]
 then
         if [ "$REPLBATTMSG" == "enable" ]; then
-            echo "[${NAME}] UPS reports that its batteries need replacement." | tee >(wall) >(logger -t "nut-notify[$$]")
+            echo "[${UPS}] UPS reports that its batteries need replacement." | tee >(wall) >(logger -t "nut-notify[$$]")
 
             if [ "$(type -t "REPLBATT")" == "function" ]; then
                 echo "Executing user's hook script for REPLBATT (as non-blocking)..." | logger -t "nut-notify[$$]"
@@ -162,7 +186,7 @@ then
 
 # for any other status messages the user has configured to be reported
 else
-        echo "[${NAME}] ${1}" | tee >(wall) >(logger -t "nut-notify[$$]")
+        echo "[${UPS}] ${1}" | tee >(wall) >(logger -t "nut-notify[$$]")
 
         if [ "$(type -t "$NOTIFYTYPE")" == "function" ]; then
             echo "Executing user's hook script for $NOTIFYTYPE (as non-blocking)..." | logger -t "nut-notify[$$]"

@@ -87,8 +87,9 @@ try {
 
         for ($i=0; $i<count($rows); $i++) {
             $row = array_map('trim', explode(':', $rows[$i], 2));
-            $key = $row[0];
-            $val = $row[1];
+            // values come from the UPS, escape them before they reach the page
+            $key = htmlspecialchars($row[0]);
+            $val = htmlspecialchars($row[1] ?? '');
 
             switch ($key) {
                 case 'ups.status':

@@ -30,8 +30,43 @@ PLGPATH="/boot/config/plugins/nut-dw"
 CONFIG=$PLGPATH/nut-dw.cfg
 DOCROOT="/usr/local/emhttp/plugins/nut-dw"
 
+# serialize service and config changes; shutdown paths (rc.6) stay lock-free.
+# -o keeps the lock fd out of the daemons this script starts.
+case "$1" in
+    start|start_upsmon|stop|reload|restart|write_config)
+        if [ -z "$RCNUT_LOCKED" ]; then
+            RCNUT_LOCKED=1 exec flock -o -w 180 /var/run/rc.nut.lock "$0" "$@"
+        fi
+        ;;
+esac
+
 # read our configuration
 [ -e "$CONFIG" ] && source $CONFIG
+
+# replace line $1 of file $2 with the literal text $3 (no sed, so values are never parsed)
+set_line() {
+    local text="${3//$'\r'/}"
+    text="${text//$'\n'/ }"
+    SET_LINE_TEXT="$text" awk -v n="$1" 'NR == n { print ENVIRON["SET_LINE_TEXT"]; next } 1' "$2" > "$2.tmp" \
+        && cat "$2.tmp" > "$2"
+    rm -f "$2.tmp"
+}
+
+# quote a value for a NUT config file
+nut_quote() {
+    local v="${1//\\/\\\\}"
+    v="${v//\"/\\\"}"
+    printf '"%s"' "$v"
+}
+
+# true if the driver for the GUI-configured UPS name is running
+monitored_driver_running() {
+    local pidfile
+    for pidfile in /var/run/nut/*-"$NAME".pid; do
+        [ -e "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null && return 0
+    done
+    return 1
+}
 
 error_at_start() {
     if [ -d $DOCROOT/misc ]; then
@@ -49,10 +84,18 @@ start_driver() {
             error_at_start
         fi
         echo "WARNING: NUT failed to start one or more UPS drivers, continuing with the drivers that did start."
+        SUBJECT="NUT: UPS driver failed to start"
+        DESCRIPTION="One or more UPS drivers failed to start; NUT is running with the remaining drivers. Check the SYSLOG."
+        LEVEL="warning"
+        # upsmon still starts (so NOCOMM alerts fire), but say loudly that shutdown protection is gone
+        if [ "$MANUAL" != "enable" ] && [ "$IPADDR" == "127.0.0.1" -o "$IPADDR" == "localhost" ] && ! monitored_driver_running; then
+            echo "ERROR: The driver for the monitored UPS [${NAME}] is not running, this system is NOT protected by NUT."
+            SUBJECT="NUT: monitored UPS [${NAME}] driver failed to start"
+            DESCRIPTION="The driver for the monitored UPS [${NAME}] is not running, so this system will NOT shut down on power loss. Check the SYSLOG."
+            LEVEL="alert"
+        fi
         if [ -x /usr/local/emhttp/webGui/scripts/notify ]; then
-            /usr/local/emhttp/webGui/scripts/notify -e "NUT" -s "NUT: UPS driver failed to start" \
-                -d "One or more UPS drivers failed to start; NUT is running with the remaining drivers. Check the SYSLOG." \
-                -i "warning" >/dev/null 2>&1
+            /usr/local/emhttp/webGui/scripts/notify -e "NUT" -s "$SUBJECT" -d "$DESCRIPTION" -i "$LEVEL" >/dev/null 2>&1
         fi
     fi
 }
@@ -187,20 +230,20 @@ write_config() {
     if [ "$MANUAL" == "disable" ] || [ "$MANUAL" == "onlyups" ]; then
         if [ "$MANUAL" == "disable" ]; then
             # add the name
-            sed -i "1 s~.*~[${NAME}]~" /etc/nut/ups.conf
+            set_line 1 /etc/nut/ups.conf "[${NAME}]"
 
             # Add the driver config
             if [ "$DRIVER" == "custom" ]; then
-                    sed -i "2 s/.*/driver = ${SERIAL}/" /etc/nut/ups.conf
+                    set_line 2 /etc/nut/ups.conf "driver = ${SERIAL}"
             else
-                    sed -i "2 s/.*/driver = ${DRIVER}/" /etc/nut/ups.conf
+                    set_line 2 /etc/nut/ups.conf "driver = ${DRIVER}"
             fi
 
             # add the port
             if [ -n "$PORT" ]; then
-                sed -i "3 s~.*~port = ${PORT}~" /etc/nut/ups.conf
+                set_line 3 /etc/nut/ups.conf "port = ${PORT}"
             else
-                sed -i "3 s~.*~port = auto~" /etc/nut/ups.conf
+                set_line 3 /etc/nut/ups.conf "port = auto"
             fi
 
             # Add SNMP-specific config
@@ -233,15 +276,15 @@ write_config() {
                 var14=''
             fi
 
-            sed -i "4 s/.*/$var10/" /etc/nut/ups.conf
-            sed -i "5 s/.*/$var11/" /etc/nut/ups.conf
-            sed -i "6 s/.*/$var12/" /etc/nut/ups.conf
-            sed -i "7 s/.*/$var13/" /etc/nut/ups.conf
-            sed -i "8 s/.*/$var14/" /etc/nut/ups.conf
+            set_line 4 /etc/nut/ups.conf "$var10"
+            set_line 5 /etc/nut/ups.conf "$var11"
+            set_line 6 /etc/nut/ups.conf "$var12"
+            set_line 7 /etc/nut/ups.conf "$var13"
+            set_line 8 /etc/nut/ups.conf "$var14"
         fi
 
         # add mode standalone/netserver
-        sed -i "1 s/.*/MODE = ${MODE}/" /etc/nut/nut.conf
+        set_line 1 /etc/nut/nut.conf "MODE = ${MODE}"
 
         # Set monitor ip address, user, password and mode
         if [ "$MODE" == "slave" ]; then
@@ -254,16 +297,16 @@ write_config() {
         MONPASS="$(echo "$MONPASS" | base64 --decode)"
         SLAVEPASS="$(echo "$SLAVEPASS" | base64 --decode)"
 
-        var1="MONITOR ${NAME}@${IPADDR} 1 ${MONUSER} ${MONPASS} ${MONITOR}"
-        sed -i "1 s,.*,$var1," /etc/nut/upsmon.conf
+        var1="MONITOR ${NAME}@${IPADDR} 1 ${MONUSER} $(nut_quote "$MONPASS") ${MONITOR}"
+        set_line 1 /etc/nut/upsmon.conf "$var1"
 
         # Set if the ups should be turned off
         if [ "$UPSKILL" == "enable" ]; then
             var8='POWERDOWNFLAG "/etc/nut/killpower"'
-            sed -i "3 s,.*,$var8," /etc/nut/upsmon.conf
+            set_line 3 /etc/nut/upsmon.conf "$var8"
         else
             var9='POWERDOWNFLAG "/etc/nut/no_killpower"'
-            sed -i "3 s,.*,$var9," /etc/nut/upsmon.conf
+            set_line 3 /etc/nut/upsmon.conf "$var9"
         fi
 
         # NUT Monitor Debug Level
@@ -275,18 +318,18 @@ write_config() {
             var24=''
         fi
 
-        sed -i "8 s/.*/$var24/" /etc/nut/upsmon.conf
+        set_line 8 /etc/nut/upsmon.conf "$var24"
 
         if [ "$MODE" != "slave" ]; then
             # Set upsd users
             var18="[${MONUSER}]"
-            var19="password = ${MONPASS}"
+            var19="password = $(nut_quote "$MONPASS")"
             var21="[${SLAVEUSER}]"
-            var22="password = ${SLAVEPASS}"
-            sed -i "6 s,.*,$var18," /etc/nut/upsd.users
-            sed -i "7 s,.*,$var19," /etc/nut/upsd.users
-            sed -i "9 s,.*,$var21," /etc/nut/upsd.users
-            sed -i "10 s,.*,$var22," /etc/nut/upsd.users
+            var22="password = $(nut_quote "$SLAVEPASS")"
+            set_line 6 /etc/nut/upsd.users "$var18"
+            set_line 7 /etc/nut/upsd.users "$var19"
+            set_line 9 /etc/nut/upsd.users "$var21"
+            set_line 10 /etc/nut/upsd.users "$var22"
         fi
     fi
 

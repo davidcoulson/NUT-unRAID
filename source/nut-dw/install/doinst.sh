@@ -20,11 +20,11 @@ BOOT="/boot/config/plugins/nut-dw"
 DOCROOT="/usr/local/emhttp/plugins/nut-dw"
 
 # Add nut user and group (for legacy packages)
-if [ "$( grep -ic "218" /etc/group )" -eq 0 ]; then
+if ! grep -q "^nut:" /etc/group; then
     groupadd -g 218 nut >/dev/null 2>&1
 fi
 
-if [ "$( grep -ic "218" /etc/passwd )" -eq 0 ]; then
+if ! grep -q "^nut:" /etc/passwd; then
     useradd -u 218 -g nut -s /bin/false nut >/dev/null 2>&1
 fi
 
@@ -60,7 +60,13 @@ if [ ! -d $BOOT/ups ]; then
 fi
 
 # copy default conf files to flash drive, if no backups exist there
+[ ! -f $BOOT/ups/upsd.users ] && NEWUSERS="YES"
 cp -nr $DOCROOT/nut-defaults/* $BOOT/ups/ >/dev/null 2>&1
+
+# fresh installs get a random admin password instead of the well-known default
+if [ "$NEWUSERS" == "YES" ]; then
+    sed -i "s/^password = adminpass$/password = $(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 20)/" $BOOT/ups/upsd.users
+fi
 
 # copy conf files from flash drive to local system, for our services to use
 cp -rf $BOOT/ups/* /etc/nut/ >/dev/null 2>&1

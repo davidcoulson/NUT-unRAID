@@ -42,6 +42,7 @@ fi
 echo "Pulling default configuration files from package..."
 cp -f $DOCROOT/default.cfg $BOOT/nut-dw.cfg
 cp -rf $DOCROOT/nut-defaults/* $BOOT/ups/
+sed -i "s/^password = adminpass$/password = $(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 20)/" $BOOT/ups/upsd.users
 cp -rf $BOOT/ups/* /etc/nut/
 
 echo "Setting up permissions on configuration locations..."

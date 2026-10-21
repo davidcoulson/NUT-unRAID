@@ -19,10 +19,11 @@
  */
 $base     = '/etc/nut/';
 $plgpath  = '/boot/config/plugins/nut-dw/ups/';
-$editfile = realpath($_POST['editfile']);
+$editfile = realpath($_POST['editfile'] ?? '');
 $plgfile  = $plgpath.basename($editfile);
 
-if (file_exists($editfile) && array_key_exists('editdata', $_POST)) {
+// only existing files directly inside /etc/nut may be written
+if ($editfile && is_file($editfile) && dirname($editfile).'/' === $base && array_key_exists('editdata', $_POST)) {
     // remove carriage returns
     $editdata = str_replace("\r", '', $_POST['editdata']);
 
@@ -31,14 +32,11 @@ if (file_exists($editfile) && array_key_exists('editdata', $_POST)) {
         mkdir($plgpath);
     }
 
-    // save conf file to flash drive regardless of mode
-    file_put_contents($plgfile, $editdata);
+    // save conf file to flash drive regardless of mode (temp file + rename, so a failed write can't truncate it)
+    $flash_ok = file_put_contents($plgfile.'.tmp', $editdata) !== false && rename($plgfile.'.tmp', $plgfile);
 
     // save conf file to local system as well
-    file_put_contents($editfile, $editdata);
-
-    // save file contents
-    $return_var = file_put_contents($editfile, $editdata);
+    $return_var = $flash_ok && file_put_contents($editfile, $editdata, LOCK_EX) !== false;
 } else {
     $return_var = false;
 }

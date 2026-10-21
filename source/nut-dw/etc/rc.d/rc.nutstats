@@ -41,7 +41,8 @@ echo "Enabling the NUT Runtime Statistics Module..."
             monitorVarsOR=("${STATSCHART1VAR}" "${STATSCHART2VAR}" "${STATSCHART3VAR}" "${STATSCHART4VAR}" "${STATSCHART5VAR}" "${STATSCHART6VAR}" "${STATSCHART7VAR}")
 
             for i in "${monitorVarsOR[@]}"; do
-                if [ -z "${i// }" ]; then
+                # names become file paths below, so only allow NUT variable characters
+                if [ -z "${i// }" ] || [[ ! "$i" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$i" == *..* ]]; then
                   variableTestSuccess="NO"
                 fi
             done
@@ -70,6 +71,8 @@ echo "Enabling the NUT Runtime Statistics Module..."
         chown root:root /etc/nutstats/*
         chmod 644 /etc/nutstats/*
         chown root:root /etc/nutstats/*
+        # the settings copy holds the (base64) NUT passwords
+        chmod 600 /etc/nutstats/nut-dw.cfg
 
         cp -f  $DOCROOT/misc/nutstats.cron /boot/config/plugins/dynamix/nutstats.cron
 
@@ -95,9 +98,11 @@ echo "Enabling the NUT Runtime Statistics Module..."
         update_cron
         sleep 1
         echo "NUT Runtime Statistics is requesting the first batch of data..."
-        /usr/sbin/nutstats 2>/dev/null
+        # in the background, so a hung upsd cannot stall rc.nut
+        ( timeout 120 /usr/sbin/nutstats >/dev/null 2>&1 & )
     else
         cp -f $CONFIG /etc/nutstats/
+        chmod 600 /etc/nutstats/nut-dw.cfg
     fi
 }
 

@@ -3,13 +3,13 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "nut-dw">
 <!ENTITY author    "desertwitch">
-<!ENTITY version   "2026.10.22a">
+<!ENTITY version   "2026.10.23">
 <!ENTITY launch    "Settings/NUTsettings">
 <!ENTITY gitURL    "https://raw.githubusercontent.com/davidcoulson/NUT-unRAID/master">
 <!ENTITY pluginURL "&gitURL;/plugin/&name;.plg">
 <!ENTITY pkgURL    "&gitURL;/packages">
 <!ENTITY plgPATH   "/boot/config/plugins/&name;">
-<!ENTITY plgNAME   "nut-plugin-2026.10.22a-x86_64-1">
+<!ENTITY plgNAME   "nut-plugin-2026.10.23-x86_64-1">
 <!ENTITY plgMD5    "b23d2d6995dd0c6f615cd6fb75a57052">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 ]>
@@ -18,7 +18,7 @@
 
 <CHANGES>
 ## Network UPS Tools (NUT) for UNRAID
-###2026.10.22a (davidcoulson fork)
+###2026.10.23 (davidcoulson fork)
 - new: scheduled UPS battery self-test (weekly or monthly, quick or deep, per UPS) with a result notification
 - new: option to alert for on-battery only after N seconds, and an EARLY_STAGE hook after N seconds on battery (upssched)
 - new: writable UPS variables (upsrw) on the Commands page, for any UPS

@@ -143,13 +143,13 @@ monitored_driver_running() {
 # retry drivers that are not running yet (USB devices can be slow to appear after boot or an outage)
 retry_drivers() {
     local try ups missing
-    for try in 1 2 3; do
+    for try in $(seq 1 12); do
         missing=""
         for ups in $(sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/\1/p' /etc/nut/ups.conf); do
             monitored_driver_running "$ups" || missing="$missing $ups"
         done
         [ -z "$missing" ] && return 0
-        echo "NUT driver(s) not running:${missing}, retrying in 10 seconds (attempt ${try}/3)..."
+        echo "NUT driver(s) not running:${missing}, retrying in 10 seconds (attempt ${try}/12)..."
         sleep 10
         for ups in $missing; do
             /usr/sbin/upsdrvctl -u root start "$ups"
@@ -260,6 +260,11 @@ stop() {
             fi
         done
     fi
+
+    # on-battery workers and upssched timers must not outlive the services (a stale worker can still set FSD)
+    pkill -f /usr/sbin/nut-notify 2>/dev/null
+    pkill -x upssched 2>/dev/null
+    rm -f /var/run/nut/upssched.pipe /var/run/nut/upssched.lock
 
     sleep 2
 
@@ -651,10 +656,9 @@ case "$1" in
         ;;
     stop) # stops all UPS-related daemons
         sleep 1
-        write_config
-        sleep 1
         stop
         sleep 1
+        write_config
         check_down
         ;;
     reload)
@@ -670,9 +674,9 @@ case "$1" in
         ;;
     restart)
         sleep 1
-        write_config
+        stop # with the old configuration: upsdrvctl stop must see the drivers that are running
         sleep 1
-        stop
+        write_config
         sleep 3
         start
         ;;

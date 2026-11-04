@@ -133,6 +133,12 @@ then
             MESSAGE="This is not the UPS configured for shutdown in the GUI ([${NAME}@${IPADDR}])."
         fi
 
+        # full manual mode: the GUI shutdown criteria are hidden, so they must not act; upsmon.conf decides
+        if [ "$MANUAL" == "enable" ]; then
+            SHUTDOWN="none"
+            MESSAGE="Manual configuration mode is on, shutdown is left to upsmon."
+        fi
+
         if [ "$DELAYALERT" == "1" ]; then
             echo "[${UPS}] UPS is on battery (alert delayed by ${ONBATTDELAY}s). ${MESSAGE}" | logger -t "nut-notify[$$]"
         else

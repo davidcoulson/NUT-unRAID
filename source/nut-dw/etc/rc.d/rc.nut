@@ -353,7 +353,7 @@ write_config() {
                 [ -z "$SNMPMIB" ] && SNMPMIB="auto"
 
                 var10="pollfreq = ${POLL}"
-                var11="community = ${COMMUNITY}"
+                var11="community = $(nut_quote "$COMMUNITY")"
                 var12="snmp_version = ${SNMPVER}"
 
                 if [ "$SNMPMIB" == "auto" ]; then

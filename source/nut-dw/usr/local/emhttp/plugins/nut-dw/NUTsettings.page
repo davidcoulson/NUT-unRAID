@@ -1514,8 +1514,8 @@ function getNUTclients() {
 $(function() {
     showStatus('upsmon');
 
-    $('.nut-name').mask('ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ', {translation:  {'Z': {pattern: /[A-Za-z0-9-]/, optional: true}}});
-    $('.nut-ipaddr').mask('0ZZ.0ZZ.0ZZ.0ZZZZZZZZ', {translation:  {'Z': {pattern: /[0-9:]/, optional: true}}});
+    $('.nut-name').mask('ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ', {translation:  {'Z': {pattern: /[A-Za-z0-9._-]/, optional: true}}});
+    // no mask on .nut-ipaddr: it rewrote hostnames and IPv6 addresses (the field's pattern validates it instead)
 
     $('.nut-numeric').mask('ZZZZZZZZZZZZZZZ', {translation:  {'Z': {pattern: /[0-9-]/, optional: true}}});
     $('.nut-alphanumeric').mask('ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ', {translation:  {'Z': {pattern: /[A-Za-z0-9]/, optional: true}}});

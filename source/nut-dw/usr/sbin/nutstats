@@ -74,7 +74,7 @@ do
       if [ ! "$monitorVar" == "disable" ] ; then
             upsVar="$( /usr/bin/upsc "$NAME"@"$IPADDR" "$monitorVar" 2>/dev/null )"
             if [ -n "$upsVar" ]; then
-                  newJson="$(/usr/bin/jq --arg jq_upsVar "${upsVar}" --arg jq_epochMS "${epochMS}" '.data[.data| length] |= . + { "x": $jq_epochMS|tonumber, "y": $jq_upsVar|tonumber, }' $STATROOT/"$monitorVar".json 2>/dev/null)"
+                  newJson="$(/usr/bin/jq --arg jq_upsVar "${upsVar}" --arg jq_epochMS "${epochMS}" '.data[.data| length] |= . + { "x": $jq_epochMS|tonumber, "y": $jq_upsVar|tonumber, } | .data |= .[-5000:]' $STATROOT/"$monitorVar".json 2>/dev/null)"
                   if [ -n "$newJson" ]; then
                         echo "$newJson" > $STATROOT/"$monitorVar".json.new
                         rm -f $STATROOT/"$monitorVar".json

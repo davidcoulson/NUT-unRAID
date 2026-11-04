@@ -3,14 +3,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "nut-dw">
 <!ENTITY author    "desertwitch">
-<!ENTITY version   "2026.10.26">
+<!ENTITY version   "2026.10.27">
 <!ENTITY launch    "Settings/NUTsettings">
 <!ENTITY gitURL    "https://raw.githubusercontent.com/davidcoulson/NUT-unRAID/master">
 <!ENTITY pluginURL "&gitURL;/plugin/&name;.plg">
 <!ENTITY pkgURL    "&gitURL;/packages">
 <!ENTITY plgPATH   "/boot/config/plugins/&name;">
-<!ENTITY plgNAME   "nut-plugin-2026.10.26-x86_64-1">
-<!ENTITY plgMD5    "87f55d5c79968b0f3725cd0b0fddd3b3">
+<!ENTITY plgNAME   "nut-plugin-2026.10.27-x86_64-1">
+<!ENTITY plgMD5    "105a3a756e18d73ccfbe49367798694d">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 ]>
 
@@ -18,6 +18,11 @@
 
 <CHANGES>
 ## Network UPS Tools (NUT) for UNRAID
+###2026.10.27 (davidcoulson fork)
+- fix: in full manual configuration mode the hidden GUI shutdown criteria no longer shut the server down on battery (notifications and hooks still run; upsmon.conf decides)
+- fix: the UPS name field accepts dots and underscores, and the UPS address field no longer rewrites hostnames and IPv6 addresses when the page loads
+- fix: the SNMP community is quoted in ups.conf, so spaces, # and quotes in it work
+- fix: statistics keep at most the last 5000 points per variable instead of growing without limit
 ###2026.10.26 (davidcoulson fork)
 - fix: stopping NUT only ends real nut-notify workers; it used to kill any process whose command line merely contained "/usr/sbin/nut-notify" (an ssh or bash -c that mentioned it, an editor)
 - fix: on ONLINE the shutdown workers are cancelled before upssched and the notifications run (up to 15 seconds), and the worker re-checks the UPS is still off line right before setting FSD

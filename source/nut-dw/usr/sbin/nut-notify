@@ -156,13 +156,6 @@ then
             echo "Shutdown criteria are now being monitored..." | logger -t "nut-notify[$$]"
 
             if [ "$SHUTDOWN" == "sec_timer" ]; then
-                # a deep self-test or calibration reports OB too: hold the timer back while CAL is set,
-                # then start it if the UPS is still on battery (an ONLINE event ends this worker as usual)
-                c=0
-                while [[ " $(timeout 10 /usr/bin/upsc "$UPS" ups.status 2>/dev/null) " == *" CAL "* ]]; do
-                    [ "$c" -eq 0 ] && echo "UPS is calibrating or running a deep battery test, the shutdown timer starts when that ends..." | logger -t "nut-notify[$$]"
-                    c=1; sleep 5
-                done
                 (( n = TIMER ))
                 # Loop with one second interval to allow SIGTERM reception.
                 while [ $n -ne 0 ]

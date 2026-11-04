@@ -32,17 +32,27 @@ trap 'ssh "$HOST" "rm -rf $W"' EXIT
 
 # ship the tree (COPYFILE_DISABLE keeps macOS ._ metadata files out), then let makepkg pack it
 # as root:root; -l n: no symlink->doinst conversion, -c n: keep the modes as they are in git
+# Both ends of the pipe are checked: a local tar error (e.g. an unreadable file) can still produce
+# a well-formed but incomplete stream that the remote side would happily pack.
 COPYFILE_DISABLE=1 tar -C "$SRC" -cf - . | ssh "$HOST" "mkdir $W/tree && tar -C $W/tree -xf - \
-    && chown -R root:root $W/tree && cd $W/tree && makepkg -l n -c n $W/$PKG >/dev/null 2>&1" || exit 1
+    && chown -R root:root $W/tree && cd $W/tree && makepkg -l n -c n $W/$PKG >/dev/null 2>&1"
+ST=("${PIPESTATUS[@]}")
+[ "${ST[0]}" -eq 0 ] || { echo "ERROR: local tar of $SRC failed (status ${ST[0]})"; exit 1; }
+[ "${ST[1]}" -eq 0 ] || { echo "ERROR: remote extract/makepkg failed (status ${ST[1]})"; exit 1; }
 scp -q "$HOST:$W/$PKG" "$OUT/$PKG" || exit 1
 
-# layout check: no "./"-prefixed members besides the root entry, and doinst.sh where installpkg looks
-if tar -tJf "$OUT/$PKG" | grep -q '^\./.'; then
+# layout check: no "./"-prefixed members besides the root entry, and doinst.sh where installpkg looks.
+# The listing is read once into a variable (not piped into grep -q, whose early exit could SIGPIPE tar).
+LIST=$(tar -tJf "$OUT/$PKG") || { echo "ERROR: cannot list $PKG"; rm -f "$OUT/$PKG"; exit 1; }
+if grep -q '^\./.' <<<"$LIST"; then
     echo "ERROR: $PKG has ./-prefixed paths; installpkg would skip install/doinst.sh"; rm -f "$OUT/$PKG"; exit 1
 fi
-if ! tar -tJf "$OUT/$PKG" | grep -qx 'install/doinst.sh'; then
+if ! grep -qx 'install/doinst.sh' <<<"$LIST"; then
     echo "ERROR: $PKG does not list install/doinst.sh"; rm -f "$OUT/$PKG"; exit 1
 fi
 
-(cd "$OUT" && { md5sum "$PKG" 2>/dev/null || md5 -r "$PKG"; } | awk '{print $1 "  " $2}' > "$PKG.md5" && cat "$PKG.md5")
-exit 0
+# checksum: md5sum (Linux) or md5 -r (macOS); refuse anything that isn't a 32-hex digest
+SUM=$(cd "$OUT" && { md5sum "$PKG" 2>/dev/null || md5 -r "$PKG"; } | awk '{print $1}')
+[[ "$SUM" =~ ^[0-9a-f]{32}$ ]] || { echo "ERROR: could not compute md5 of $PKG"; rm -f "$OUT/$PKG.md5"; exit 1; }
+echo "$SUM  $PKG" > "$OUT/$PKG.md5" || { echo "ERROR: cannot write $OUT/$PKG.md5"; rm -f "$OUT/$PKG.md5"; exit 1; }
+cat "$OUT/$PKG.md5"

@@ -3,14 +3,14 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "nut-dw">
 <!ENTITY author    "desertwitch">
-<!ENTITY version   "2026.10.25">
+<!ENTITY version   "2026.10.26">
 <!ENTITY launch    "Settings/NUTsettings">
 <!ENTITY gitURL    "https://raw.githubusercontent.com/davidcoulson/NUT-unRAID/master">
 <!ENTITY pluginURL "&gitURL;/plugin/&name;.plg">
 <!ENTITY pkgURL    "&gitURL;/packages">
 <!ENTITY plgPATH   "/boot/config/plugins/&name;">
-<!ENTITY plgNAME   "nut-plugin-2026.10.25-x86_64-1">
-<!ENTITY plgMD5    "9e2ec795009eac360d19ee52112b86e9">
+<!ENTITY plgNAME   "nut-plugin-2026.10.26-x86_64-1">
+<!ENTITY plgMD5    "945929aed71ad112ea4f62a7317ac537">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 ]>
 
@@ -18,6 +18,11 @@
 
 <CHANGES>
 ## Network UPS Tools (NUT) for UNRAID
+###2026.10.26 (davidcoulson fork)
+- fix: stopping NUT only ends real nut-notify workers; it used to kill any process whose command line merely contained "/usr/sbin/nut-notify" (an ssh or bash -c that mentioned it, an editor)
+- fix: on ONLINE the shutdown workers are cancelled before upssched and the notifications run (up to 15 seconds), and the worker re-checks the UPS is still off line right before setting FSD
+- fix: a fixed shutdown timer is not started while the UPS reports a calibration or deep battery test (CAL)
+- fix: rc.nut no longer passes its lock-bypass variable on to the daemons and hooks it starts
 ###2026.10.25 (davidcoulson fork)
 - fix: stop and restart now stop the drivers before the configuration is rewritten, so a changed UPS name or driver no longer leaves the old driver running
 - fix: stop and restart end running nut-notify workers and upssched timers, so a stale on-battery worker cannot set FSD after the services were stopped

@@ -66,6 +66,21 @@ if [ "$SHUTDOWN" == "sec_timer" ]; then
     BATTERY=""
 fi
 
+# command line of a nut-notify process as started by upsmon (see rc.nut stop)
+WORKER_RE='^((/usr)?/bin/bash[[:space:]]+|bash[[:space:]]+)?/usr/sbin/nut-notify([[:space:]]|$)'
+
+# On line: cancel the shutdown workers of this UPS before anything slow (upssched can take 15 seconds)
+if [ "$NOTIFYTYPE" == "ONLINE" ]; then
+    echo "Terminating monitoring instances of the program for [${UPS}]..." | logger -t "nut-notify[$$]"
+    for pid in $(pgrep -f "$WORKER_RE"); do
+        [ "$pid" == "$$" ] && continue
+        # only cancel shutdowns started by the same UPS (no UPSNAME = legacy, cancel all)
+        if [ -z "$UPSNAME" ] || tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qxF "UPSNAME=${UPSNAME}"; then
+            kill -s SIGTERM "$pid" 2>&1 | logger -t "nut-notify[$$]"
+        fi
+    done
+fi
+
 # On-battery debounce / EARLY_STAGE hook: upssched (config written by rc.nut, never in manual mode) times these.
 # upsmon's NOTIFYCMD stays this script; for ONBATT/ONLINE it also feeds the event to upssched.
 # Shutdown handling below is unaffected: only the wall/OS alert is held back (DELAYALERT=1) when upssched took the event.
@@ -84,15 +99,6 @@ fi
 
 if [ "$NOTIFYTYPE" == "ONLINE" ]
 then
-        echo "Terminating monitoring instances of the program for [${UPS}]..." | logger -t "nut-notify[$$]"
-        for pid in $(pgrep -f "/usr/sbin/nut-notify"); do
-            [ "$pid" == "$$" ] && continue
-            # only cancel shutdowns started by the same UPS (no UPSNAME = legacy, cancel all)
-            if [ -z "$UPSNAME" ] || tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qxF "UPSNAME=${UPSNAME}"; then
-                kill -s SIGTERM "$pid" 2>&1 | logger -t "nut-notify[$$]"
-            fi
-        done
-
         if [ "$DELAYALERT" == "1" ]; then
             echo "[${UPS}] UPS is online, any planned shutdowns were cancelled." | logger -t "nut-notify[$$]"
         else
@@ -125,6 +131,12 @@ then
         if [ -n "$UPSNAME" ] && [ "$UPSNAME" != "${NAME}@${IPADDR}" ]; then
             SHUTDOWN="none"
             MESSAGE="This is not the UPS configured for shutdown in the GUI ([${NAME}@${IPADDR}])."
+        fi
+
+        # a deep self-test or calibration reports OB too; a fixed timer would shut the server down mid-test
+        if [ "$SHUTDOWN" == "sec_timer" ] && [[ " $(timeout 10 /usr/bin/upsc "$UPS" ups.status 2>/dev/null) " == *" CAL "* ]]; then
+            SHUTDOWN="none"
+            MESSAGE="The UPS is calibrating or running a deep battery test, so the shutdown timer is not started."
         fi
 
         if [ "$DELAYALERT" == "1" ]; then
@@ -191,6 +203,12 @@ then
             timeout -s9 15 "$NOTIFY" -e "${EVENT}" -s "Alert ${SUBJECT} System Shutdown" -d "UNRAID is being gracefully shutdown from a UPS power event." -i "alert"
             if [ $? -gt 100 ]; then
                 echo "OS notifications could not be sent within 15 seconds." | logger -t "nut-notify[$$]"
+            fi
+
+            # power may have returned while the criteria were met and the notifications went out
+            if [[ " $(timeout 10 /usr/bin/upsc "$UPS" ups.status 2>/dev/null) " == *" OL "* ]]; then
+                echo "[${UPS}] UPS is online again, FSD cancelled." | logger -t "nut-notify[$$]"
+                exit 0
             fi
 
             echo "Setting FSD (= point of no return)..." | logger -t "nut-notify[$$]"

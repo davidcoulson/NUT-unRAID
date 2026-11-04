@@ -39,6 +39,8 @@ case "$1" in
         fi
         ;;
 esac
+# the guard is for this process only; it must not leak into the daemons and hooks started below
+unset RCNUT_LOCKED
 
 # read our configuration
 [ -e "$CONFIG" ] && source $CONFIG
@@ -262,7 +264,8 @@ stop() {
     fi
 
     # on-battery workers and upssched timers must not outlive the services (a stale worker can still set FSD)
-    pkill -f /usr/sbin/nut-notify 2>/dev/null
+    # anchored on the command line start: a bare substring would also kill e.g. an ssh or bash -c that merely mentions the path
+    pkill -f -- '^((/usr)?/bin/bash[[:space:]]+|bash[[:space:]]+)?/usr/sbin/nut-notify([[:space:]]|$)' 2>/dev/null
     pkill -x upssched 2>/dev/null
     rm -f /var/run/nut/upssched.pipe /var/run/nut/upssched.lock
 

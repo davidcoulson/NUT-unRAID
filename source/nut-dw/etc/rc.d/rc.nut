@@ -143,13 +143,13 @@ monitored_driver_running() {
 # retry drivers that are not running yet (USB devices can be slow to appear after boot or an outage)
 retry_drivers() {
     local try ups missing
-    for try in $(seq 1 12); do
+    for try in 1 2 3; do
         missing=""
         for ups in $(sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/\1/p' /etc/nut/ups.conf); do
             monitored_driver_running "$ups" || missing="$missing $ups"
         done
         [ -z "$missing" ] && return 0
-        echo "NUT driver(s) not running:${missing}, retrying in 10 seconds (attempt ${try}/12)..."
+        echo "NUT driver(s) not running:${missing}, retrying in 10 seconds (attempt ${try}/3)..."
         sleep 10
         for ups in $missing; do
             /usr/sbin/upsdrvctl -u root start "$ups"

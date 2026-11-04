@@ -10,7 +10,7 @@
 <!ENTITY pkgURL    "&gitURL;/packages">
 <!ENTITY plgPATH   "/boot/config/plugins/&name;">
 <!ENTITY plgNAME   "nut-plugin-2026.10.25-x86_64-1">
-<!ENTITY plgMD5    "c1dfe910afec071c20bc364cccfce9d5">
+<!ENTITY plgMD5    "9e2ec795009eac360d19ee52112b86e9">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 ]>
 
@@ -22,7 +22,6 @@
 - fix: stop and restart now stop the drivers before the configuration is rewritten, so a changed UPS name or driver no longer leaves the old driver running
 - fix: stop and restart end running nut-notify workers and upssched timers, so a stale on-battery worker cannot set FSD after the services were stopped
 - fix: the "no usable battery data for 120 seconds" fallback is now measured in elapsed time (it could take about 22 minutes)
-- fix: drivers that are not up at boot are retried for two minutes instead of 30 seconds
 - fix: the world-writable directories shipped by the legacy 2.7.4 backend packages are made 0755 on install
 ###2026.10.24 (davidcoulson fork)
 - fix: NUT did not start after a reboot ("Can't open /etc/nut/ups.conf"); the 2026.10.21-2026.10.23 plugin packages listed their files as "./install/doinst.sh", so installpkg never ran doinst.sh and the configuration was not restored from the flash drive into /etc/nut

@@ -158,20 +158,21 @@ then
                         (( n-- ))
                 done
             else
-                nodata=0
+                nodata_since=""
                 timer=$(timeout 10 /usr/bin/upsc "$UPS" "$BATTERY" 2>/dev/null)
                 # Loop with one second interval to allow SIGTERM reception.
                 # Keep looping while above the threshold; on battery with no usable data for 120s, shut down anyway.
                 while [ -z "$timer" ] || [[ ! "$timer" =~ ^[0-9]+([.][0-9]+)?$ ]] || [ "$(printf "%.0f" "$timer")" -gt "$TIMER" ]
                 do
                     if [ -z "$timer" ] || [[ ! "$timer" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-                        (( nodata++ ))
-                        if [ "$nodata" -ge 120 ]; then
+                        # measured in elapsed time: each failed poll can itself take up to 11 seconds
+                        [ -z "$nodata_since" ] && nodata_since=$SECONDS
+                        if [ $(( SECONDS - nodata_since )) -ge 120 ]; then
                             echo "Error: No usable ${BATTERY} data from [${UPS}] for 120 seconds while on battery..." | logger -t "nut-notify[$$]"
                             break
                         fi
                     else
-                        nodata=0
+                        nodata_since=""
                     fi
                     sleep 1
                     timer=$(timeout 10 /usr/bin/upsc "$UPS" "$BATTERY" 2>/dev/null)

@@ -261,6 +261,11 @@ stop() {
         done
     fi
 
+    # on-battery workers and upssched timers must not outlive the services (a stale worker can still set FSD)
+    pkill -f /usr/sbin/nut-notify 2>/dev/null
+    pkill -x upssched 2>/dev/null
+    rm -f /var/run/nut/upssched.pipe /var/run/nut/upssched.lock
+
     sleep 2
 
     # remove pid from old package
@@ -651,10 +656,9 @@ case "$1" in
         ;;
     stop) # stops all UPS-related daemons
         sleep 1
-        write_config
-        sleep 1
         stop
         sleep 1
+        write_config
         check_down
         ;;
     reload)
@@ -670,9 +674,9 @@ case "$1" in
         ;;
     restart)
         sleep 1
-        write_config
+        stop # with the old configuration: upsdrvctl stop must see the drivers that are running
         sleep 1
-        stop
+        write_config
         sleep 3
         start
         ;;

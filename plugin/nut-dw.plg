@@ -2,7 +2,7 @@
 
 <!DOCTYPE PLUGIN [
 <!ENTITY name      "nut-dw">
-<!ENTITY author    "desertwitch">
+<!ENTITY author    "davidcoulson">
 <!ENTITY version   "2026.10.27">
 <!ENTITY launch    "Settings/NUTsettings">
 <!ENTITY gitURL    "https://raw.githubusercontent.com/davidcoulson/NUT-unRAID/master">
